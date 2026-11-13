@@ -1,0 +1,14 @@
+{
+  "name": "evote-phuoc-tra",
+  "version": "1.0.0",
+  "description": "Hệ thống biểu quyết điện tử Hội đồng nhân dân Phước Trà",
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "cd client && npm run build",
+    "dev:server": "node server/index.js",
+    "dev:client": "cd client && npm run dev"
+  },
+  "keywords": ["evote", "hdnd", "socket.io", "react"],
+  "author": "Phuoc Tra",
+  "license": "ISC"
+}

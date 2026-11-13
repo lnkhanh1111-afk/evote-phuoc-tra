@@ -1,0 +1,196 @@
+{
+  "sessions": [
+    {
+      "id": "session-phuoc-tra-01",
+      "name": "Kỳ họp thứ 8 (Kỳ họp thường lệ) - HĐND xã Phước Trà Khóa XII, Nhiệm kỳ 2021 - 2026",
+      "session_code": "KH-08-KXII",
+      "location": "Hội trường tầng 2 - UBND xã Phước Trà",
+      "date": "13/11/2026",
+      "total_delegates": 25,
+      "is_active": true,
+      "active_agenda_id": "agenda-04",
+      "voting_status": "idle",
+      "voting_time_remaining": 5,
+      "voting_duration": 30,
+      "voting_started_at": "2026-11-13T00:57:02.166Z",
+      "created_at": "2026-11-13T00:48:39.725Z"
+    }
+  ],
+  "delegates": [
+    {
+      "id": "db-01",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-01",
+      "name": "Hồ Văn Long",
+      "title": "Bí thư Đảng ủy, Chủ tịch HĐND xã",
+      "group_name": "Tổ đại biểu số 1",
+      "pin": "1111",
+      "is_present": true,
+      "is_online": true,
+      "socket_id": "XNXLTENJZUbarIZZAAAC"
+    },
+    {
+      "id": "db-03",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-03",
+      "name": "Trần Văn Bình",
+      "title": "Phó Chủ tịch HĐND xã",
+      "group_name": "Tổ đại biểu số 1",
+      "pin": "3333",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-04",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-04",
+      "name": "Võ Văn Thắng",
+      "title": "Chủ tịch UBMTTQ Việt Nam xã",
+      "group_name": "Tổ đại biểu số 1",
+      "pin": "4444",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-05",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-05",
+      "name": "Lê Thị Mai Hương",
+      "title": "Trưởng Ban Kinh tế - Xã hội HĐND",
+      "group_name": "Tổ đại biểu số 1",
+      "pin": "1005",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-06",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-06",
+      "name": "Phạm Quốc Dũng",
+      "title": "Trưởng Ban Pháp chế HĐND xã",
+      "group_name": "Tổ đại biểu số 2",
+      "pin": "1006",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-07",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-07",
+      "name": "Đinh Văn Hiệp",
+      "title": "Chỉ huy trưởng Ban CHQS xã",
+      "group_name": "Tổ đại biểu số 2",
+      "pin": "1007",
+      "is_present": true,
+      "is_online": false
+    }
+  ],
+  "agendas": [
+    {
+      "id": "agenda-01",
+      "session_id": "session-phuoc-tra-01",
+      "order_num": 1,
+      "code": "NQ-01/NQ-HĐND",
+      "title": "Thông qua Báo cáo tình hình phát triển Kinh tế - Xã hội, Quốc phòng - An ninh năm 2026 và phương hướng nhiệm vụ năm 2027",
+      "description": "Biểu quyết thông qua toàn văn Báo cáo số 45/BC-UBND của UBND xã Phước Trà về kết quả đạt được và chỉ tiêu phát triển KTXH năm 2027.",
+      "default_duration": 30,
+      "status": "published",
+      "required_ratio": 0.5
+    },
+    {
+      "id": "agenda-02",
+      "session_id": "session-phuoc-tra-01",
+      "order_num": 2,
+      "code": "NQ-02/NQ-HĐND",
+      "title": "Thông qua Dự toán phân bổ thu, chi ngân sách xã và Kế hoạch đầu tư công năm 2027",
+      "description": "Biểu quyết phê chuẩn tổng mức thu ngân sách dự kiến 14,2 tỷ đồng và danh mục 6 công trình giao thông nông thôn xã Phước Trà.",
+      "default_duration": 45,
+      "status": "published",
+      "required_ratio": 0.5
+    },
+    {
+      "id": "agenda-03",
+      "session_id": "session-phuoc-tra-01",
+      "order_num": 3,
+      "code": "NQ-03/NQ-HĐND",
+      "title": "Thông qua Đề án xây dựng xã Nông thôn mới nâng cao giai đoạn 2026 - 2030",
+      "description": "Biểu quyết các chỉ tiêu trọng tâm: Nâng cấp đường trục thôn xóm, cơ sở vật chất văn hóa, trường học đạt chuẩn quốc gia.",
+      "default_duration": 30,
+      "status": "pending",
+      "required_ratio": 0.5
+    },
+    {
+      "id": "agenda-04",
+      "session_id": "session-phuoc-tra-01",
+      "order_num": 4,
+      "code": "NQ-04/NQ-HĐND",
+      "title": "Biểu quyết miễn nhiệm và bầu bổ sung Ủy viên UBND xã Phước Trà Khóa XII",
+      "description": "Bầu bổ sung Ủy viên UBND phụ trách lĩnh vực Địa chính - Nông nghiệp - Xây dựng và Môi trường.",
+      "default_duration": 60,
+      "status": "published",
+      "required_ratio": 0.5
+    },
+    {
+      "id": "0f843d05-1aaf-4be6-9092-c2b1fef173dc",
+      "session_id": "session-phuoc-tra-01",
+      "order_num": 5,
+      "code": "NQ-99",
+      "title": "Hello",
+      "description": "ádasdasdasd",
+      "default_duration": 31,
+      "status": "pending",
+      "required_ratio": 0.5
+    }
+  ],
+  "votes": [
+    {
+      "id": "1615cdd8-6560-4762-a21c-db9e35d715fc",
+      "agenda_id": "agenda-01",
+      "delegate_id": "db-01",
+      "choice": "agree",
+      "voted_at": "2026-11-13T00:53:31.406Z"
+    },
+    {
+      "id": "2ed4f54b-6c44-41a8-b722-0e95a44da086",
+      "agenda_id": "agenda-02",
+      "delegate_id": "db-01",
+      "choice": "agree",
+      "voted_at": "2026-11-13T00:56:08.005Z"
+    },
+    {
+      "id": "16370be6-a633-42a3-84fc-dfa989114019",
+      "agenda_id": "agenda-02",
+      "delegate_id": "db-03",
+      "choice": "agree",
+      "voted_at": "2026-11-13T00:56:08.015Z"
+    },
+    {
+      "id": "d811b59c-d6a0-4a16-9f92-e40e431a8605",
+      "agenda_id": "agenda-02",
+      "delegate_id": "db-04",
+      "choice": "agree",
+      "voted_at": "2026-11-13T00:56:08.018Z"
+    },
+    {
+      "id": "0fb9cecc-e290-4abe-8619-6ae401efd4ed",
+      "agenda_id": "agenda-02",
+      "delegate_id": "db-05",
+      "choice": "agree",
+      "voted_at": "2026-11-13T00:56:08.021Z"
+    },
+    {
+      "id": "415f8ca9-b18d-446f-a95b-21bb782f881f",
+      "agenda_id": "agenda-02",
+      "delegate_id": "db-06",
+      "choice": "agree",
+      "voted_at": "2026-11-13T00:56:08.027Z"
+    },
+    {
+      "id": "6384e6fb-fd64-4e0e-a6a8-49f6fd64fe76",
+      "agenda_id": "agenda-02",
+      "delegate_id": "db-07",
+      "choice": "agree",
+      "voted_at": "2026-11-13T00:56:08.030Z"
+    }
+  ]
+}

@@ -1,0 +1,904 @@
+import React, { useState } from 'react';
+import { socket, API_URL } from '../socket';
+import {
+  Play, Square, Plus, RotateCcw, Eye, Sparkles, Users, CheckCircle,
+  XCircle, Clock, FileText, Check, Settings, Shield, PlusCircle, Trash2, Edit3, Printer
+} from 'lucide-react';
+
+export default function AdminDashboard({ state }) {
+  const [activeTab, setActiveTab] = useState('controller'); // 'controller' | 'agendas' | 'delegates' | 'report'
+  const [durationInput, setDurationInput] = useState(30);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  // Form thêm chỉ tiêu
+  const [showAddAgendaModal, setShowAddAgendaModal] = useState(false);
+  const [newAgenda, setNewAgenda] = useState({
+    title: '',
+    code: '',
+    description: '',
+    default_duration: 30,
+    required_ratio: 0.5
+  });
+
+  // Form thêm đại biểu
+  const [showAddDelegateModal, setShowAddDelegateModal] = useState(false);
+  const [newDelegate, setNewDelegate] = useState({
+    name: '',
+    seat_number: '',
+    title: 'Đại biểu HĐND',
+    group_name: 'Tổ đại biểu số 1',
+    pin: ''
+  });
+
+  const session = state.session;
+  const currentAgenda = state.currentAgenda;
+  const results = state.results;
+  const agendas = state.agendas || [];
+  const delegates = state.delegates || [];
+  const votingStatus = state.voting_status; // 'idle' | 'voting' | 'locked' | 'published'
+  const timeRemaining = state.time_remaining;
+
+  // 1. Actions điều khiển
+  const handleSelectAgenda = (agendaId) => {
+    socket.emit('admin_select_agenda', { agendaId });
+  };
+
+  const handleStartVoting = () => {
+    if (!currentAgenda) return alert('Vui lòng chọn chỉ tiêu biểu quyết trước');
+    socket.emit('admin_start_voting', {
+      agendaId: currentAgenda.id,
+      duration: durationInput
+    });
+  };
+
+  const handleLockVoting = () => {
+    socket.emit('admin_lock_voting');
+  };
+
+  const handleExtendVoting = () => {
+    socket.emit('admin_extend_time', { seconds: 15 });
+  };
+
+  const handlePublishResults = () => {
+    socket.emit('admin_publish_results');
+  };
+
+  const handleResetAgenda = () => {
+    if (!currentAgenda) return;
+    if (window.confirm(`Xác nhận xóa phiếu và cho biểu quyết lại chỉ tiêu "${currentAgenda.title}"?`)) {
+      socket.emit('admin_reset_agenda', { agendaId: currentAgenda.id });
+    }
+  };
+
+  // Giả lập biểu quyết tự động để test hệ thống
+  const handleSimulateVotes = async () => {
+    try {
+      setIsSimulating(true);
+      const res = await fetch(`${API_URL}/api/simulator/auto-vote`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) alert(data.error || 'Có lỗi khi chạy simulator');
+    } catch (e) {
+      alert('Không kết nối được server simulator: ' + e.message);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  // Reset toàn bộ dữ liệu mẫu
+  const handleResetAllData = async () => {
+    if (window.confirm('CẢNH BÁO: Khôi phục toàn bộ dữ liệu kỳ họp về mặc định ban đầu?')) {
+      await fetch(`${API_URL}/api/reset-all`, { method: 'POST' });
+    }
+  };
+
+  // Toggle điểm danh đại biểu
+  const handleTogglePresent = async (delId) => {
+    await fetch(`${API_URL}/api/delegates/${delId}/toggle-present`, { method: 'POST' });
+  };
+
+  // Thêm chỉ tiêu mới
+  const handleCreateAgenda = async (e) => {
+    e.preventDefault();
+    if (!newAgenda.title) return alert('Vui lòng nhập tên chỉ tiêu');
+    await fetch(`${API_URL}/api/agendas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newAgenda)
+    });
+    setShowAddAgendaModal(false);
+    setNewAgenda({ title: '', code: '', description: '', default_duration: 30, required_ratio: 0.5 });
+  };
+
+  // Xóa chỉ tiêu
+  const handleDeleteAgenda = async (id) => {
+    if (window.confirm('Xác nhận xóa chỉ tiêu này?')) {
+      await fetch(`${API_URL}/api/agendas/${id}`, { method: 'DELETE' });
+    }
+  };
+
+  // Thêm đại biểu mới
+  const handleCreateDelegate = async (e) => {
+    e.preventDefault();
+    if (!newDelegate.name) return alert('Vui lòng nhập tên đại biểu');
+    await fetch(`${API_URL}/api/delegates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newDelegate)
+    });
+    setShowAddDelegateModal(false);
+    setNewDelegate({ name: '', seat_number: '', title: 'Đại biểu HĐND', group_name: 'Tổ đại biểu số 1', pin: '' });
+  };
+
+  // Xóa đại biểu
+  const handleDeleteDelegate = async (id) => {
+    if (window.confirm('Xác nhận xóa đại biểu này khỏi danh sách?')) {
+      await fetch(`${API_URL}/api/delegates/${id}`, { method: 'DELETE' });
+    }
+  };
+
+  const presentCount = delegates.filter(d => d.is_present).length;
+  const onlineCount = delegates.filter(d => d.is_online).length;
+
+  return (
+    <div className="min-h-screen bg-slate-100 p-4 md:p-6 font-sans">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* THANH HEADER ĐIỀU HÀNH */}
+        <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="bg-red-700 text-white text-xs font-black uppercase px-2.5 py-1 rounded">
+                BÀN ĐIỀU HÀNH THƯ KÝ / CHỦ TỌA
+              </span>
+              <span className="text-xs text-slate-500 font-medium">HĐND XÃ PHƯỚC TRÀ</span>
+            </div>
+            <h1 className="text-xl md:text-2xl font-black text-slate-900 mt-1">
+              {session?.name || "Kỳ họp Hội đồng nhân dân xã Phước Trà"}
+            </h1>
+            <p className="text-xs text-slate-500">
+              Tổng số ĐB triệu tập: <b>{session?.total_delegates || 25}</b> | Có mặt: <b className="text-emerald-700">{presentCount}</b> | Vắng mặt: <b className="text-rose-700">{delegates.length - presentCount}</b> | Máy tính bảng Online: <b className="text-blue-700">{onlineCount}</b>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleSimulateVotes}
+              disabled={isSimulating || !currentAgenda}
+              title="Mô phỏng toàn bộ đại biểu bấm biểu quyết ngay lập tức để kiểm tra hệ thống"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition shadow-sm active:scale-95 disabled:opacity-50"
+            >
+              <Sparkles className="w-4 h-4 text-yellow-300" />
+              <span>{isSimulating ? 'Đang giả lập...' : 'Giả Lập Biểu Quyết (Test)'}</span>
+            </button>
+
+            <button
+              onClick={handleResetAllData}
+              title="Khôi phục dữ liệu ban đầu"
+              className="flex items-center gap-1 text-xs text-slate-600 hover:text-red-700 bg-slate-100 hover:bg-slate-200 px-3 py-2.5 rounded-xl transition border border-slate-200 font-medium"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Dữ liệu mẫu</span>
+            </button>
+          </div>
+        </header>
+
+        {/* TABS ĐIỀU HƯỚNG */}
+        <div className="flex border-b border-slate-200 bg-white rounded-t-2xl px-4 pt-2 gap-2 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('controller')}
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'controller'
+                ? 'border-red-600 text-red-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Play className="w-4 h-4" />
+            <span>1. Điều Khiển Biểu Quyết Trực Tiếp</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('agendas')}
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'agendas'
+                ? 'border-red-600 text-red-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>2. Danh Mục Chỉ Tiêu / Nghị Quyết ({agendas.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('delegates')}
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'delegates'
+                ? 'border-red-600 text-red-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>3. Đại Biểu & Điểm Danh ({delegates.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('report')}
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'report'
+                ? 'border-red-600 text-red-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Printer className="w-4 h-4" />
+            <span>4. Biên Bản Kiểm Phiếu & In Ấn</span>
+          </button>
+        </div>
+
+        {/* TAB 1: ĐIỀU KHIỂN BIỂU QUYẾT TRỰC TIẾP */}
+        {activeTab === 'controller' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Cột Trái (2/3): Bàn điều khiển chỉ tiêu hiện tại */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                  <h2 className="text-base font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <span>Chỉ tiêu đang chọn:</span>
+                  </h2>
+
+                  <select
+                    value={currentAgenda?.id || ''}
+                    onChange={(e) => handleSelectAgenda(e.target.value)}
+                    className="text-sm font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-red-600 max-w-xs truncate"
+                  >
+                    {agendas.map((ag) => (
+                      <option key={ag.id} value={ag.id}>
+                        {ag.code} - {ag.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {currentAgenda ? (
+                  <div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                      <div className="flex items-center justify-between text-xs text-slate-500 font-bold mb-1">
+                        <span className="text-red-700 uppercase">{currentAgenda.code}</span>
+                        <span>Thời lượng đề xuất: {currentAgenda.default_duration} giây</span>
+                      </div>
+                      <h3 className="text-lg font-extrabold text-slate-900 leading-snug">
+                        {currentAgenda.title}
+                      </h3>
+                      {currentAgenda.description && (
+                        <p className="text-xs text-slate-600 mt-2">{currentAgenda.description}</p>
+                      )}
+                    </div>
+
+                    {/* TRẠNG THÁI & CÁC NÚT ĐIỀU KHIỂN */}
+                    <div className="space-y-4">
+                      {/* Trạng thái hiện tại */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-900 text-white rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-slate-400 uppercase font-bold">Trạng thái:</span>
+                          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase ${
+                            votingStatus === 'voting' ? 'bg-red-600 text-white animate-pulse' :
+                            votingStatus === 'locked' ? 'bg-amber-500 text-slate-950' :
+                            votingStatus === 'published' ? 'bg-emerald-500 text-white' :
+                            'bg-slate-700 text-slate-300'
+                          }`}>
+                            {votingStatus === 'voting' ? 'Đang mở biểu quyết' :
+                             votingStatus === 'locked' ? 'Đã khóa biểu quyết' :
+                             votingStatus === 'published' ? 'Đã công bố kết quả' : 'Chờ bắt đầu'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 font-mono">
+                          <Clock className="w-4 h-4 text-yellow-400" />
+                          <span className="text-xl font-black text-yellow-400">{timeRemaining}s</span>
+                        </div>
+                      </div>
+
+                      {/* Hàng nút tác vụ chính */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {/* 1. Nút BẮT ĐẦU */}
+                        <button
+                          type="button"
+                          onClick={handleStartVoting}
+                          disabled={votingStatus === 'voting'}
+                          className="flex flex-col items-center justify-center p-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-extrabold rounded-xl shadow transition active:scale-95"
+                        >
+                          <Play className="w-5 h-5 mb-1 fill-white" />
+                          <span className="text-xs uppercase">Bắt Đầu Biểu Quyết</span>
+                        </button>
+
+                        {/* 2. Nút KHÓA */}
+                        <button
+                          type="button"
+                          onClick={handleLockVoting}
+                          disabled={votingStatus !== 'voting'}
+                          className="flex flex-col items-center justify-center p-3.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-extrabold rounded-xl shadow transition active:scale-95"
+                        >
+                          <Square className="w-5 h-5 mb-1 fill-white" />
+                          <span className="text-xs uppercase">Khóa Biểu Quyết</span>
+                        </button>
+
+                        {/* 3. Nút +15s GIA HẠN */}
+                        <button
+                          type="button"
+                          onClick={handleExtendVoting}
+                          disabled={votingStatus !== 'voting'}
+                          className="flex flex-col items-center justify-center p-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold rounded-xl shadow transition active:scale-95"
+                        >
+                          <Plus className="w-5 h-5 mb-1" />
+                          <span className="text-xs uppercase">Gia Hạn +15s</span>
+                        </button>
+
+                        {/* 4. Nút CÔNG BỐ KẾT QUẢ */}
+                        <button
+                          type="button"
+                          onClick={handlePublishResults}
+                          className="flex flex-col items-center justify-center p-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow transition active:scale-95"
+                        >
+                          <Eye className="w-5 h-5 mb-1" />
+                          <span className="text-xs uppercase">Công Bố Kết Quả</span>
+                        </button>
+                      </div>
+
+                      {/* Tùy chỉnh đếm ngược & Reset */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-bold text-slate-600">Thời gian (giây):</label>
+                          <div className="flex gap-1.5">
+                            {[15, 30, 45, 60].map((sec) => (
+                              <button
+                                key={sec}
+                                onClick={() => setDurationInput(sec)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                                  durationInput === sec ? 'bg-red-700 text-white' : 'bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                {sec}s
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleResetAgenda}
+                          className="text-xs font-bold text-rose-700 hover:text-rose-900 flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Biểu quyết lại chỉ tiêu này</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 py-6 text-center">Vui lòng chọn 1 chỉ tiêu biểu quyết</p>
+                )}
+              </div>
+
+              {/* BẢNG THEO DÕI THỜI GIAN THỰC TỪNG ĐẠI BIỂU (GIÁM SÁT TIẾN ĐỘ) */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-sm uppercase">
+                      Giám sát đại biểu biểu quyết ({results?.total_voted || 0}/{results?.present_delegates || 0} ĐB đã bấm)
+                    </h3>
+                    <p className="text-xs text-slate-500">Màu xanh: Đã bấm | Màu xám: Chưa bấm | Chấm xanh: Đang online</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                  {results?.delegate_status_list?.map((d) => (
+                    <div
+                      key={d.id}
+                      className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between transition-all ${
+                        !d.is_present
+                          ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60'
+                          : d.has_voted
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm'
+                          : votingStatus === 'voting'
+                          ? 'bg-rose-50 border-rose-200 text-rose-900 animate-pulse'
+                          : 'bg-slate-50 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-[11px]">{d.seat_number}</span>
+                        <div className="flex items-center gap-1">
+                          {d.is_online && (
+                            <span className="w-2 h-2 bg-emerald-500 rounded-full" title="Tablet đang kết nối"></span>
+                          )}
+                          {d.has_voted ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                          ) : (
+                            <span className="text-[10px] text-slate-400">Chưa</span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="font-bold text-[11px] truncate">{d.name}</p>
+                      <div className="mt-1 text-[10px] font-semibold">
+                        {!d.is_present ? (
+                          <span className="text-slate-400">Vắng</span>
+                        ) : d.has_voted ? (
+                          <span className="text-emerald-700">Đã biểu quyết</span>
+                        ) : (
+                          <span className="text-rose-600">Chưa biểu quyết</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Cột Phải (1/3): Thống kê kết quả nhanh */}
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h3 className="font-bold text-slate-800 text-sm uppercase mb-4 pb-2 border-b border-slate-100">
+                  Kết Quả Biểu Quyết
+                </h3>
+
+                {results ? (
+                  <div className="space-y-4">
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <div className="flex justify-between items-center text-xs font-bold text-emerald-800">
+                        <span>TÁN THÀNH:</span>
+                        <span className="text-base font-black text-emerald-700 font-mono">
+                          {results.agree_count} ({results.agree_percent_present}%)
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-emerald-600 mt-0.5">
+                        Tỷ lệ trên tổng triệu tập: <b>{results.agree_percent_total}%</b>
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl">
+                      <div className="flex justify-between items-center text-xs font-bold text-rose-800">
+                        <span>KHÔNG TÁN THÀNH:</span>
+                        <span className="text-base font-black text-rose-700 font-mono">
+                          {results.disagree_count} ({results.disagree_percent_present}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+                      <div className="flex justify-between items-center text-xs font-bold text-amber-800">
+                        <span>KHÔNG Ý KIẾN:</span>
+                        <span className="text-base font-black text-amber-700 font-mono">
+                          {results.neutral_count} ({results.neutral_percent_present}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Chưa biểu quyết:</span>
+                        <b className="font-mono">{results.not_voted_count} ĐB</b>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Tổng số đại biểu có mặt:</span>
+                        <b className="font-mono">{results.present_delegates} ĐB</b>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Tổng số đại biểu triệu tập:</span>
+                        <b className="font-mono">{results.total_delegates} ĐB</b>
+                      </div>
+                    </div>
+
+                    {/* Đánh giá pháp lý HĐND */}
+                    <div className={`p-4 rounded-xl text-center font-bold text-xs ${
+                      results.is_passed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                    }`}>
+                      {results.is_passed ? '✓ ĐỦ ĐIỀU KIỆN THÔNG QUA (QUÁ BÁN)' : '✗ CHƯA ĐẠT QUÁ NỬA TỔNG SỐ ĐB'}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 text-center py-4">Chưa có kết quả</p>
+                )}
+              </div>
+
+              {/* Hướng dẫn nhanh cho thư ký */}
+              <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 text-xs text-slate-600 space-y-2">
+                <p className="font-bold text-slate-800 uppercase">Quy trình điều hành chuẩn:</p>
+                <ol className="list-decimal pl-4 space-y-1.5 leading-relaxed">
+                  <li>Thư ký chọn nội dung chỉ tiêu cần biểu quyết.</li>
+                  <li>Chủ tọa tuyên bố mở biểu quyết, thư ký bấm <b>"Bắt đầu biểu quyết"</b>.</li>
+                  <li>Theo dõi trên màn hình giám sát, khi đại biểu biểu quyết đủ hoặc hết giờ, hệ thống tự khóa.</li>
+                  <li>Bấm <b>"Công bố kết quả"</b> để đẩy dữ liệu lên màn hình hội trường.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: QUẢN LÝ CHỈ TIÊU / NGHỊ QUYẾT */}
+        {activeTab === 'agendas' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Danh Mục Các Chỉ Tiêu / Nghị Quyết Cần Biểu Quyết</h2>
+                <p className="text-xs text-slate-500">Thêm, chỉnh sửa hoặc sắp xếp thứ tự biểu quyết trong kỳ họp</p>
+              </div>
+              <button
+                onClick={() => setShowAddAgendaModal(true)}
+                className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Thêm Chỉ Tiêu Mới</span>
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {agendas.map((ag, index) => (
+                <div key={ag.id} className="py-4 flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="w-8 h-8 rounded-lg bg-red-100 text-red-700 font-black text-sm flex items-center justify-center shrink-0">
+                      0{index + 1}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">
+                          {ag.code}
+                        </span>
+                        <span className="text-xs text-slate-400 font-medium">
+                          Thời gian: {ag.default_duration}s • Yêu cầu: &gt; {ag.required_ratio * 100}%
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm mt-1">{ag.title}</h4>
+                      {ag.description && <p className="text-xs text-slate-500 mt-0.5">{ag.description}</p>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSelectAgenda(ag.id)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+                    >
+                      Chọn
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAgenda(ag.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                      title="Xóa chỉ tiêu"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Thêm Chỉ Tiêu */}
+            {showAddAgendaModal && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in">
+                  <h3 className="text-base font-bold text-slate-800 mb-4 pb-2 border-b">
+                    Thêm Chỉ Tiêu Biểu Quyết Mới
+                  </h3>
+                  <form onSubmit={handleCreateAgenda} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Mã dự thảo / Nghị quyết:</label>
+                      <input
+                        type="text"
+                        value={newAgenda.code}
+                        onChange={(e) => setNewAgenda({ ...newAgenda, code: e.target.value })}
+                        placeholder="VD: NQ-05/NQ-HĐND"
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Tên nội dung biểu quyết (*):</label>
+                      <textarea
+                        rows={3}
+                        required
+                        value={newAgenda.title}
+                        onChange={(e) => setNewAgenda({ ...newAgenda, title: e.target.value })}
+                        placeholder="VD: Thông qua Nghị quyết về phê chuẩn quyết toán ngân sách xã năm..."
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Tờ trình / Tóm tắt nội dung:</label>
+                      <textarea
+                        rows={2}
+                        value={newAgenda.description}
+                        onChange={(e) => setNewAgenda({ ...newAgenda, description: e.target.value })}
+                        placeholder="Tóm tắt nội dung để đại biểu nắm rõ..."
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Thời gian biểu quyết (giây):</label>
+                        <input
+                          type="number"
+                          value={newAgenda.default_duration}
+                          onChange={(e) => setNewAgenda({ ...newAgenda, default_duration: e.target.value })}
+                          className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">Tỷ lệ thông qua:</label>
+                        <select
+                          value={newAgenda.required_ratio}
+                          onChange={(e) => setNewAgenda({ ...newAgenda, required_ratio: parseFloat(e.target.value) })}
+                          className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                        >
+                          <option value={0.5}>Quá bán (&gt; 50%)</option>
+                          <option value={0.6667}>Ít nhất 2/3 tổng số ĐB</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddAgendaModal(false)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-bold rounded-xl transition"
+                      >
+                        Lưu chỉ tiêu
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: QUẢN LÝ ĐẠI BIỂU & ĐIỂM DANH */}
+        {activeTab === 'delegates' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Danh Sách Đại Biểu HĐND & Điểm Danh Kỳ Họp</h2>
+                <p className="text-xs text-slate-500">Chạm vào nút điểm danh để chuyển đổi trạng thái Có mặt / Vắng mặt</p>
+              </div>
+              <button
+                onClick={() => setShowAddDelegateModal(true)}
+                className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Thêm Đại Biểu</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <th className="py-3 px-3">Mã ghế</th>
+                    <th className="py-3 px-3">Họ và tên</th>
+                    <th className="py-3 px-3">Chức vụ</th>
+                    <th className="py-3 px-3">Tổ đại biểu</th>
+                    <th className="py-3 px-3">Mã PIN</th>
+                    <th className="py-3 px-3 text-center">Trạng thái điểm danh</th>
+                    <th className="py-3 px-3 text-center">Kết nối Tablet</th>
+                    <th className="py-3 px-3 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {delegates.map((del) => (
+                    <tr key={del.id} className="hover:bg-slate-50 transition">
+                      <td className="py-3 px-3 font-mono font-bold text-red-700">{del.seat_number}</td>
+                      <td className="py-3 px-3 font-bold text-slate-900">{del.name}</td>
+                      <td className="py-3 px-3 text-slate-600">{del.title}</td>
+                      <td className="py-3 px-3 text-slate-500">{del.group_name}</td>
+                      <td className="py-3 px-3 font-mono text-slate-400">{del.pin}</td>
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          onClick={() => handleTogglePresent(del.id)}
+                          className={`px-3 py-1 rounded-full font-bold text-[11px] transition ${
+                            del.is_present
+                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                              : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                          }`}
+                        >
+                          {del.is_present ? '✓ Có mặt' : '✗ Vắng mặt'}
+                        </button>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
+                          del.is_online ? 'text-emerald-600' : 'text-slate-400'
+                        }`}>
+                          <span className={`w-2 h-2 rounded-full ${del.is_online ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                          {del.is_online ? 'Online' : 'Offline'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          onClick={() => handleDeleteDelegate(del.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 transition"
+                          title="Xóa đại biểu"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Thêm Đại Biểu */}
+            {showAddDelegateModal && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in">
+                  <h3 className="text-base font-bold text-slate-800 mb-4 pb-2 border-b">
+                    Thêm Đại Biểu HĐND Mới
+                  </h3>
+                  <form onSubmit={handleCreateDelegate} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Mã ghế / Số hiệu ĐB:</label>
+                      <input
+                        type="text"
+                        value={newDelegate.seat_number}
+                        onChange={(e) => setNewDelegate({ ...newDelegate, seat_number: e.target.value })}
+                        placeholder="VD: ĐB-26"
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Họ và tên (*):</label>
+                      <input
+                        type="text"
+                        required
+                        value={newDelegate.name}
+                        onChange={(e) => setNewDelegate({ ...newDelegate, name: e.target.value })}
+                        placeholder="VD: Nguyễn Văn A"
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Chức vụ / Đơn vị:</label>
+                      <input
+                        type="text"
+                        value={newDelegate.title}
+                        onChange={(e) => setNewDelegate({ ...newDelegate, title: e.target.value })}
+                        placeholder="VD: Đại biểu HĐND xã"
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Tổ đại biểu:</label>
+                      <input
+                        type="text"
+                        value={newDelegate.group_name}
+                        onChange={(e) => setNewDelegate({ ...newDelegate, group_name: e.target.value })}
+                        placeholder="VD: Tổ đại biểu số 1"
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Mã PIN tablet (4 số):</label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={newDelegate.pin}
+                        onChange={(e) => setNewDelegate({ ...newDelegate, pin: e.target.value })}
+                        placeholder="VD: 1234 (để trống tự tạo ngẫu nhiên)"
+                        className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddDelegateModal(false)}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-bold rounded-xl transition"
+                      >
+                        Lưu Đại Biểu
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: BIÊN BẢN KIỂM PHIẾU & IN ẤN */}
+        {activeTab === 'report' && (
+          <div className="space-y-4">
+            <div className="flex justify-end no-print">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 bg-red-700 hover:bg-red-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition"
+              >
+                <Printer className="w-4 h-4" />
+                <span>In Biên Bản Kiểm Phiếu / Xuất PDF</span>
+              </button>
+            </div>
+
+            {/* MẪU BIÊN BẢN CHUẨN THỂ THỨC VĂN BẢN NHÀ NƯỚC */}
+            <div className="bg-white p-8 md:p-12 rounded-2xl shadow border border-slate-200 max-w-4xl mx-auto text-black font-serif leading-relaxed">
+              <div className="flex justify-between items-start text-center mb-6">
+                <div>
+                  <p className="font-bold text-xs uppercase">HỘI ĐỒNG NHÂN DÂN</p>
+                  <p className="font-bold text-xs uppercase underline">XÃ PHƯỚC TRÀ</p>
+                  <p className="text-[11px] mt-1">Số: ... /BB-HĐND</p>
+                </div>
+                <div>
+                  <p className="font-bold text-xs uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+                  <p className="font-bold text-xs underline">Độc lập - Tự do - Hạnh phúc</p>
+                  <p className="text-[11px] italic mt-1">Phước Trà, ngày {session?.date || new Date().toLocaleDateString('vi-VN')}</p>
+                </div>
+              </div>
+
+              <div className="text-center my-6">
+                <h2 className="font-bold text-base uppercase">BIÊN BẢN KIỂM PHIẾU BIỂU QUYẾT ĐIỆN TỬ</h2>
+                <p className="font-bold text-sm italic">{session?.name}</p>
+              </div>
+
+              <div className="text-xs space-y-2 mb-6">
+                <p>Hôm nay, ngày {session?.date || new Date().toLocaleDateString('vi-VN')}, tại {session?.location || 'Hội trường UBND xã Phước Trà'}.</p>
+                <p>Hội đồng nhân dân xã Phước Trà tiến hành biểu quyết các nội dung, chỉ tiêu của Kỳ họp bằng Hệ thống biểu quyết điện tử.</p>
+                <p>- Tổng số đại biểu Hội đồng nhân dân triệu tập: <b>{session?.total_delegates || 25}</b> đại biểu.</p>
+                <p>- Số đại biểu có mặt tham gia biểu quyết: <b>{presentCount}</b> đại biểu (đạt {Math.round((presentCount / (session?.total_delegates || 25)) * 100)}%).</p>
+                <p>- Số đại biểu vắng mặt: <b>{(session?.total_delegates || 25) - presentCount}</b> đại biểu.</p>
+              </div>
+
+              <h4 className="font-bold text-xs uppercase mb-2">KẾT QUẢ BIỂU QUYẾT CHI TIẾT CÁC NỘI DUNG:</h4>
+
+              <table className="w-full text-xs border-collapse border border-black mb-8">
+                <thead>
+                  <tr className="bg-slate-100 text-center font-bold">
+                    <th className="border border-black p-2 w-10">TT</th>
+                    <th className="border border-black p-2">Nội dung / Dự thảo Nghị quyết</th>
+                    <th className="border border-black p-2 w-20">Tán thành</th>
+                    <th className="border border-black p-2 w-20">Không tán thành</th>
+                    <th className="border border-black p-2 w-20">Không ý kiến</th>
+                    <th className="border border-black p-2 w-24">Tỷ lệ (% triệu tập)</th>
+                    <th className="border border-black p-2 w-24">Kết luận</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.allResults?.map((item, idx) => (
+                    <tr key={item.agenda?.id || idx}>
+                      <td className="border border-black p-2 text-center">{idx + 1}</td>
+                      <td className="border border-black p-2">
+                        <b>{item.agenda?.code}</b>: {item.agenda?.title}
+                      </td>
+                      <td className="border border-black p-2 text-center font-bold">{item.agree_count}</td>
+                      <td className="border border-black p-2 text-center font-bold">{item.disagree_count}</td>
+                      <td className="border border-black p-2 text-center font-bold">{item.neutral_count}</td>
+                      <td className="border border-black p-2 text-center font-bold">{item.agree_percent_total}%</td>
+                      <td className="border border-black p-2 text-center font-bold">
+                        {item.is_passed ? 'THÔNG QUA' : 'CHƯA THÔNG QUA'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="flex justify-between text-center text-xs mt-12 pt-4">
+                <div>
+                  <p className="font-bold uppercase">THƯ KÝ KỲ HỌP</p>
+                  <p className="italic text-[11px]">(Ký và ghi rõ họ tên)</p>
+                  <div className="h-20"></div>
+                  <p className="font-bold">Bùi Thị Tuyết</p>
+                </div>
+                <div>
+                  <p className="font-bold uppercase">CHỦ TỌA KỲ HỌP</p>
+                  <p className="italic text-[11px]">(Ký và ghi rõ họ tên)</p>
+                  <div className="h-20"></div>
+                  <p className="font-bold">Hồ Văn Long</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
