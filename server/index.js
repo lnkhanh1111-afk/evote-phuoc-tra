@@ -403,6 +403,22 @@ io.on('connection', (socket) => {
     broadcastFullState();
   });
 
+  // 9. Admin: Cập nhật thông tin cuộc họp & tổng số đại biểu triệu tập qua Socket
+  socket.on('admin_update_session', (sessionData) => {
+    const activeSession = Database.getActiveSession();
+    if (!activeSession) return;
+
+    const updates = {};
+    if (sessionData.name !== undefined) updates.name = String(sessionData.name).trim();
+    if (sessionData.total_delegates !== undefined) updates.total_delegates = parseInt(sessionData.total_delegates, 10);
+    if (sessionData.location !== undefined) updates.location = String(sessionData.location).trim();
+    if (sessionData.date !== undefined) updates.date = String(sessionData.date).trim();
+
+    Database.updateSessionState(activeSession.id, updates);
+    console.log(`[Admin Socket] Cập nhật cuộc họp: ${updates.name || activeSession.name}, Tổng ĐB: ${updates.total_delegates || activeSession.total_delegates}`);
+    broadcastFullState();
+  });
+
   // Xử lý ngắt kết nối
   socket.on('disconnect', () => {
     if (socket.delegateId) {

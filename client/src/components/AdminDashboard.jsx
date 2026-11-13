@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { socket, API_URL } from '../socket';
 import {
   Play, Square, Plus, RotateCcw, Eye, Sparkles, Users, CheckCircle,
@@ -32,6 +32,7 @@ export default function AdminDashboard({ state }) {
 
   // Form sửa thông tin kỳ họp / cuộc họp
   const [showEditSessionModal, setShowEditSessionModal] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [sessionForm, setSessionForm] = useState({
     name: '',
     total_delegates: 25,
@@ -40,6 +41,18 @@ export default function AdminDashboard({ state }) {
   });
 
   const session = state.session;
+
+  // Tự động đồng bộ form với thông tin kỳ họp mới nhất từ server
+  useEffect(() => {
+    if (state.session) {
+      setSessionForm({
+        name: state.session.name || '',
+        total_delegates: state.session.total_delegates || 25,
+        location: state.session.location || '',
+        date: state.session.date || ''
+      });
+    }
+  }, [state.session?.name, state.session?.total_delegates, state.session?.location, state.session?.date]);
 
   const handleOpenEditSession = () => {
     if (session) {
@@ -54,13 +67,31 @@ export default function AdminDashboard({ state }) {
   };
 
   const handleSaveSession = async (e) => {
-    e.preventDefault();
-    await fetch(`${API_URL}/api/session/active`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sessionForm)
-    });
+    if (e && e.preventDefault) e.preventDefault();
+    const payload = {
+      name: String(sessionForm.name || '').trim(),
+      total_delegates: parseInt(sessionForm.total_delegates, 10) || 25,
+      location: String(sessionForm.location || '').trim(),
+      date: String(sessionForm.date || '').trim()
+    };
+
+    // 1. Phát qua WebSocket ngay lập tức (phản hồi < 50ms tới toàn bộ máy tính bảng & màn hình LED)
+    socket.emit('admin_update_session', payload);
+
+    // 2. Gửi qua REST API dự phòng
+    try {
+      await fetch(`${API_URL}/api/session/active`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.warn('REST save fallback:', err);
+    }
+
     setShowEditSessionModal(false);
+    setSaveSuccessMsg('✓ Đã cập nhật thành công Tên cuộc họp và Số lượng đại biểu!');
+    setTimeout(() => setSaveSuccessMsg(''), 5000);
   };
   const currentAgenda = state.currentAgenda;
   const results = state.results;
@@ -247,6 +278,22 @@ export default function AdminDashboard({ state }) {
           </div>
         </header>
 
+        {/* THÔNG BÁO LƯU THÀNH CÔNG */}
+        {saveSuccessMsg && (
+          <div className="bg-emerald-600 text-white font-bold px-5 py-3.5 rounded-2xl shadow-lg flex items-center justify-between animate-in fade-in zoom-in-95 border-2 border-emerald-400">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle className="w-5 h-5 text-yellow-300" />
+              <span className="text-sm">{saveSuccessMsg}</span>
+            </div>
+            <button
+              onClick={() => setSaveSuccessMsg('')}
+              className="text-white hover:text-emerald-200 font-bold text-sm px-2 py-1 rounded-lg"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* TABS ĐIỀU HƯỚNG */}
         <div className="flex border-b border-slate-200 bg-white rounded-t-2xl px-4 pt-2 gap-2 overflow-x-auto">
           <button
@@ -258,7 +305,19 @@ export default function AdminDashboard({ state }) {
             }`}
           >
             <Play className="w-4 h-4" />
-            <span>1. Điều Khiển Biểu Quyết Trực Tiếp</span>
+            <span>1. Bàn Biểu Quyết Trực Tiếp</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('session_info')}
+            className={`py-3 px-4 font-bold text-sm border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'session_info'
+                ? 'border-red-600 text-red-700 bg-red-50/50'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Settings className="w-4 h-4 text-red-600" />
+            <span>2. Sửa Tên Cuộc Họp & Số ĐB Triệu Tập</span>
           </button>
 
           <button
@@ -270,7 +329,7 @@ export default function AdminDashboard({ state }) {
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>2. Danh Mục Chỉ Tiêu / Nghị Quyết ({agendas.length})</span>
+            <span>3. Danh Mục Chỉ Tiêu ({agendas.length})</span>
           </button>
 
           <button
@@ -282,7 +341,7 @@ export default function AdminDashboard({ state }) {
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>3. Đại Biểu & Điểm Danh ({delegates.length})</span>
+            <span>4. Đại Biểu & Điểm Danh ({delegates.length})</span>
           </button>
 
           <button
@@ -294,7 +353,7 @@ export default function AdminDashboard({ state }) {
             }`}
           >
             <Printer className="w-4 h-4" />
-            <span>4. Biên Bản Kiểm Phiếu & In Ấn</span>
+            <span>5. Biên Bản Kiểm Phiếu & In Ấn</span>
           </button>
         </div>
 
@@ -303,6 +362,36 @@ export default function AdminDashboard({ state }) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Cột Trái (2/3): Bàn điều khiển chỉ tiêu hiện tại */}
             <div className="lg:col-span-2 space-y-6">
+              {/* KHỐI TÓM TẮT THÔNG TIN CUỘC HỌP & NÚT SỬA NHANH */}
+              <div className="bg-gradient-to-r from-red-800 to-red-900 text-white p-4 md:p-5 rounded-2xl shadow-sm border border-red-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-widest text-yellow-300 font-black bg-red-950/60 px-2 py-0.5 rounded">
+                      THÔNG TIN CUỘC HỌP
+                    </span>
+                    <span className="text-xs text-yellow-200">
+                      Địa điểm: <b>{session?.location || 'UBND xã Phước Trà'}</b>
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white leading-snug mt-1">
+                    {session?.name || "Kỳ họp Hội đồng nhân dân"}
+                  </h3>
+                  <p className="text-xs text-yellow-200 mt-0.5">
+                    Tổng số đại biểu triệu tập: <b className="text-white font-mono text-sm underline decoration-yellow-400 underline-offset-2">{session?.total_delegates || 25} đại biểu</b> • Tỷ lệ quá bán pháp lý: &gt; 50% ({Math.floor((session?.total_delegates || 25) / 2) + 1} phiếu tán thành)
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('session_info')}
+                  className="flex items-center justify-center gap-1.5 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-black text-xs px-4 py-2.5 rounded-xl shadow transition shrink-0 active:scale-95"
+                  title="Nhấn để sửa tên cuộc họp và số đại biểu"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  <span>Sửa Tên & Số ĐB</span>
+                </button>
+              </div>
+
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                   <h2 className="text-base font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
@@ -575,7 +664,155 @@ export default function AdminDashboard({ state }) {
           </div>
         )}
 
-        {/* TAB 2: QUẢN LÝ CHỈ TIÊU / NGHỊ QUYẾT */}
+        {/* TAB 2: THIẾT LẬP TÊN CUỘC HỌP & TỔNG SỐ ĐẠI BIỂU TRIỆU TẬP */}
+        {activeTab === 'session_info' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8 space-y-6 max-w-4xl mx-auto animate-in fade-in">
+            <div className="border-b border-slate-200 pb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Settings className="w-6 h-6 text-red-700" />
+                  <span>Cài Đặt Thông Tin Kỳ Họp & Số Lượng Đại Biểu</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Chỉnh sửa tên cuộc họp và tổng số đại biểu triệu tập theo luật. Dữ liệu sẽ tự động đồng bộ ngay lập tức lên Màn hình LED và Tablet đại biểu.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveSession} className="space-y-6">
+              {/* 1. TÊN KỲ HỌP / CUỘC HỌP */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2">
+                <label className="block text-sm font-black text-slate-900 uppercase tracking-wide">
+                  1. Tên Kỳ Họp / Cuộc Họp (*):
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={sessionForm.name}
+                  onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
+                  placeholder="VD: Kỳ họp thứ 8 (Kỳ họp thường lệ) - HĐND xã Phước Trà Khóa XII, Nhiệm kỳ 2021 - 2026"
+                  className="w-full text-base font-bold text-slate-900 p-3.5 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600 shadow-sm leading-snug"
+                />
+                <p className="text-xs text-slate-500 italic">
+                  * Tên này sẽ xuất hiện trang trọng ở phần đầu Màn hình LED hội trường và trên đầu máy tính bảng của tất cả đại biểu.
+                </p>
+              </div>
+
+              {/* 2. TỔNG SỐ ĐẠI BIỂU TRIỆU TẬP */}
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="block text-sm font-black text-slate-900 uppercase tracking-wide">
+                    2. Tổng Số Đại Biểu Triệu Tập Theo Luật (*):
+                  </label>
+                  <span className="text-xs bg-red-100 text-red-800 font-bold px-3 py-1 rounded-full border border-red-200">
+                    Cơ sở pháp lý tính tỷ lệ quá bán (&gt; 50%)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={sessionForm.total_delegates}
+                    onChange={(e) => setSessionForm({ ...sessionForm, total_delegates: e.target.value })}
+                    className="w-36 text-center text-3xl font-black font-mono text-red-700 p-3 bg-white border-2 border-red-500 rounded-2xl outline-none focus:ring-4 focus:ring-red-200 shadow-sm"
+                  />
+                  <span className="text-base font-bold text-slate-700">Đại biểu HĐND</span>
+
+                  <div className="flex items-center gap-1.5 ml-4">
+                    <button
+                      type="button"
+                      onClick={() => setSessionForm({ ...sessionForm, total_delegates: Math.max(1, (parseInt(sessionForm.total_delegates, 10) || 25) - 1) })}
+                      className="w-10 h-10 bg-slate-200 hover:bg-slate-300 font-black rounded-xl text-lg transition active:scale-95 shadow-sm"
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSessionForm({ ...sessionForm, total_delegates: (parseInt(sessionForm.total_delegates, 10) || 25) + 1 })}
+                      className="w-10 h-10 bg-slate-200 hover:bg-slate-300 font-black rounded-xl text-lg transition active:scale-95 shadow-sm"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Các nút chọn nhanh quy mô HĐND cấp xã / huyện */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200">
+                  <span className="text-xs text-slate-500 font-semibold">Chọn nhanh theo cơ cấu:</span>
+                  {[21, 23, 25, 27, 30, 35].map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => setSessionForm({ ...sessionForm, total_delegates: count })}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+                        parseInt(sessionForm.total_delegates, 10) === count
+                          ? 'bg-red-700 text-white shadow-red-200 scale-105'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
+                      }`}
+                    >
+                      {count} Đại biểu
+                    </button>
+                  ))}
+                </div>
+
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-900 leading-relaxed font-medium">
+                  💡 <b>Quy chế biểu quyết:</b> Với <b>{sessionForm.total_delegates || 25} đại biểu triệu tập</b>, Nghị quyết sẽ <b>ĐƯỢC THÔNG QUA</b> khi có ít nhất <b>{Math.floor((parseInt(sessionForm.total_delegates, 10) || 25) / 2) + 1} đại biểu tán thành</b> (đạt quá 50%).
+                </div>
+              </div>
+
+              {/* 3. ĐỊA ĐIỂM VÀ NGÀY HỌP */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    3. Địa Điểm Tổ Chức:
+                  </label>
+                  <input
+                    type="text"
+                    value={sessionForm.location}
+                    onChange={(e) => setSessionForm({ ...sessionForm, location: e.target.value })}
+                    placeholder="VD: Hội trường tầng 2 - UBND xã Phước Trà"
+                    className="w-full text-sm font-semibold p-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600 shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    4. Ngày Tổ Chức Kỳ Họp:
+                  </label>
+                  <input
+                    type="text"
+                    value={sessionForm.date}
+                    onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
+                    placeholder="VD: 13/11/2026"
+                    className="w-full text-sm font-semibold p-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600 shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* NÚT LƯU THAY ĐỔI */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('controller')}
+                  className="px-5 py-3 text-slate-600 hover:text-slate-800 text-sm font-bold rounded-xl transition"
+                >
+                  ← Quay lại bàn biểu quyết
+                </button>
+
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-8 py-4 bg-red-700 hover:bg-red-800 text-white text-base font-black uppercase tracking-wide rounded-2xl shadow-xl shadow-red-700/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Check className="w-5 h-5 stroke-[3]" />
+                  <span>LƯU & CẬP NHẬT LÊN TOÀN BỘ MÀN HÌNH</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* TAB 3: QUẢN LÝ CHỈ TIÊU / NGHỊ QUYẾT */}
         {activeTab === 'agendas' && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">

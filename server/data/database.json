@@ -8,12 +8,12 @@
       "date": "13/11/2026",
       "total_delegates": 25,
       "is_active": true,
-      "active_agenda_id": "agenda-04",
+      "active_agenda_id": "agenda-01",
       "voting_status": "idle",
-      "voting_time_remaining": 5,
+      "voting_time_remaining": 30,
       "voting_duration": 30,
-      "voting_started_at": "2026-11-13T00:57:02.166Z",
-      "created_at": "2026-11-13T00:48:39.725Z"
+      "voting_started_at": null,
+      "created_at": "2026-11-13T02:41:38.852Z"
     }
   ],
   "delegates": [
@@ -26,8 +26,18 @@
       "group_name": "Tổ đại biểu số 1",
       "pin": "1111",
       "is_present": true,
-      "is_online": true,
-      "socket_id": "XNXLTENJZUbarIZZAAAC"
+      "is_online": false
+    },
+    {
+      "id": "db-02",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-02",
+      "name": "Nguyễn Thị Thu Hà",
+      "title": "Phó Bí thư, Chủ tịch UBND xã",
+      "group_name": "Tổ đại biểu số 1",
+      "pin": "2222",
+      "is_present": true,
+      "is_online": false
     },
     {
       "id": "db-03",
@@ -83,6 +93,204 @@
       "pin": "1007",
       "is_present": true,
       "is_online": false
+    },
+    {
+      "id": "db-08",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-08",
+      "name": "Hoàng Văn Tuấn",
+      "title": "Trưởng Công an xã",
+      "group_name": "Tổ đại biểu số 2",
+      "pin": "1008",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-09",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-09",
+      "name": "Nguyễn Thị Bích",
+      "title": "Chủ tịch Hội LH Phụ nữ xã",
+      "group_name": "Tổ đại biểu số 2",
+      "pin": "1009",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-10",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-10",
+      "name": "Hồ Văn Quân",
+      "title": "Bí thư Đoàn Thanh niên xã",
+      "group_name": "Tổ đại biểu số 2",
+      "pin": "1010",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-11",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-11",
+      "name": "Trương Thị Lan",
+      "title": "Chủ tịch Hội Nông dân xã",
+      "group_name": "Tổ đại biểu số 3",
+      "pin": "1011",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-12",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-12",
+      "name": "Đặng Văn Hùng",
+      "title": "Chủ tịch Hội Cựu chiến binh xã",
+      "group_name": "Tổ đại biểu số 3",
+      "pin": "1012",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-13",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-13",
+      "name": "Bùi Thị Tuyết",
+      "title": "Công chức Văn phòng - Thống kê",
+      "group_name": "Tổ đại biểu số 3",
+      "pin": "1013",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-14",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-14",
+      "name": "Lý Văn Tám",
+      "title": "Trưởng thôn 1",
+      "group_name": "Tổ đại biểu số 3",
+      "pin": "1014",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-15",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-15",
+      "name": "Hồ Thị Mai",
+      "title": "Đại biểu HĐND - Thôn 1",
+      "group_name": "Tổ đại biểu số 3",
+      "pin": "1015",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-16",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-16",
+      "name": "Ngô Văn Thành",
+      "title": "Trưởng thôn 2",
+      "group_name": "Tổ đại biểu số 4",
+      "pin": "1016",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-17",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-17",
+      "name": "Phan Văn Minh",
+      "title": "Đại biểu HĐND - Thôn 2",
+      "group_name": "Tổ đại biểu số 4",
+      "pin": "1017",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-18",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-18",
+      "name": "Võ Thị Lệ",
+      "title": "Đại biểu HĐND - Thôn 2",
+      "group_name": "Tổ đại biểu số 4",
+      "pin": "1018",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-19",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-19",
+      "name": "Đỗ Văn Cường",
+      "title": "Trưởng thôn 3",
+      "group_name": "Tổ đại biểu số 4",
+      "pin": "1019",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-20",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-20",
+      "name": "Hồ Văn Dũng",
+      "title": "Đại biểu HĐND - Thôn 3",
+      "group_name": "Tổ đại biểu số 4",
+      "pin": "1020",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-21",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-21",
+      "name": "Trần Đình Khang",
+      "title": "Trưởng thôn 4",
+      "group_name": "Tổ đại biểu số 5",
+      "pin": "1021",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-22",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-22",
+      "name": "Lê Văn Hậu",
+      "title": "Đại biểu HĐND - Thôn 4",
+      "group_name": "Tổ đại biểu số 5",
+      "pin": "1022",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-23",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-23",
+      "name": "Phạm Thị Thu",
+      "title": "Hiệu trưởng Trường Tiểu học",
+      "group_name": "Tổ đại biểu số 5",
+      "pin": "1023",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-24",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-24",
+      "name": "Trương Văn Lâm",
+      "title": "Trạm trưởng Trạm Y tế xã",
+      "group_name": "Tổ đại biểu số 5",
+      "pin": "1024",
+      "is_present": true,
+      "is_online": false
+    },
+    {
+      "id": "db-25",
+      "session_id": "session-phuoc-tra-01",
+      "seat_number": "ĐB-25",
+      "name": "Nguyễn Văn Phú",
+      "title": "Giám đốc HTX Nông nghiệp",
+      "group_name": "Tổ đại biểu số 5",
+      "pin": "1025",
+      "is_present": true,
+      "is_online": false
     }
   ],
   "agendas": [
@@ -94,7 +302,7 @@
       "title": "Thông qua Báo cáo tình hình phát triển Kinh tế - Xã hội, Quốc phòng - An ninh năm 2026 và phương hướng nhiệm vụ năm 2027",
       "description": "Biểu quyết thông qua toàn văn Báo cáo số 45/BC-UBND của UBND xã Phước Trà về kết quả đạt được và chỉ tiêu phát triển KTXH năm 2027.",
       "default_duration": 30,
-      "status": "published",
+      "status": "pending",
       "required_ratio": 0.5
     },
     {
@@ -105,7 +313,7 @@
       "title": "Thông qua Dự toán phân bổ thu, chi ngân sách xã và Kế hoạch đầu tư công năm 2027",
       "description": "Biểu quyết phê chuẩn tổng mức thu ngân sách dự kiến 14,2 tỷ đồng và danh mục 6 công trình giao thông nông thôn xã Phước Trà.",
       "default_duration": 45,
-      "status": "published",
+      "status": "pending",
       "required_ratio": 0.5
     },
     {
@@ -127,70 +335,9 @@
       "title": "Biểu quyết miễn nhiệm và bầu bổ sung Ủy viên UBND xã Phước Trà Khóa XII",
       "description": "Bầu bổ sung Ủy viên UBND phụ trách lĩnh vực Địa chính - Nông nghiệp - Xây dựng và Môi trường.",
       "default_duration": 60,
-      "status": "published",
-      "required_ratio": 0.5
-    },
-    {
-      "id": "0f843d05-1aaf-4be6-9092-c2b1fef173dc",
-      "session_id": "session-phuoc-tra-01",
-      "order_num": 5,
-      "code": "NQ-99",
-      "title": "Hello",
-      "description": "ádasdasdasd",
-      "default_duration": 31,
       "status": "pending",
       "required_ratio": 0.5
     }
   ],
-  "votes": [
-    {
-      "id": "1615cdd8-6560-4762-a21c-db9e35d715fc",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-01",
-      "choice": "agree",
-      "voted_at": "2026-11-13T00:53:31.406Z"
-    },
-    {
-      "id": "2ed4f54b-6c44-41a8-b722-0e95a44da086",
-      "agenda_id": "agenda-02",
-      "delegate_id": "db-01",
-      "choice": "agree",
-      "voted_at": "2026-11-13T00:56:08.005Z"
-    },
-    {
-      "id": "16370be6-a633-42a3-84fc-dfa989114019",
-      "agenda_id": "agenda-02",
-      "delegate_id": "db-03",
-      "choice": "agree",
-      "voted_at": "2026-11-13T00:56:08.015Z"
-    },
-    {
-      "id": "d811b59c-d6a0-4a16-9f92-e40e431a8605",
-      "agenda_id": "agenda-02",
-      "delegate_id": "db-04",
-      "choice": "agree",
-      "voted_at": "2026-11-13T00:56:08.018Z"
-    },
-    {
-      "id": "0fb9cecc-e290-4abe-8619-6ae401efd4ed",
-      "agenda_id": "agenda-02",
-      "delegate_id": "db-05",
-      "choice": "agree",
-      "voted_at": "2026-11-13T00:56:08.021Z"
-    },
-    {
-      "id": "415f8ca9-b18d-446f-a95b-21bb782f881f",
-      "agenda_id": "agenda-02",
-      "delegate_id": "db-06",
-      "choice": "agree",
-      "voted_at": "2026-11-13T00:56:08.027Z"
-    },
-    {
-      "id": "6384e6fb-fd64-4e0e-a6a8-49f6fd64fe76",
-      "agenda_id": "agenda-02",
-      "delegate_id": "db-07",
-      "choice": "agree",
-      "voted_at": "2026-11-13T00:56:08.030Z"
-    }
-  ]
+  "votes": []
 }
