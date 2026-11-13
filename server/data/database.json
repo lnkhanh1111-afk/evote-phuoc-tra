@@ -9,8 +9,8 @@
       "total_delegates": 17,
       "is_active": true,
       "active_agenda_id": "agenda-01",
-      "voting_status": "voting",
-      "voting_time_remaining": 46,
+      "voting_status": "locked",
+      "voting_time_remaining": 0,
       "voting_duration": 60,
       "voting_started_at": "2026-11-13T09:28:42.917Z",
       "created_at": "2026-11-13T03:53:08.770Z"
@@ -231,7 +231,7 @@
       "title": "Thông qua Báo cáo tình hình phát triển Kinh tế - Xã hội, Quốc phòng - An ninh năm 2026 và phương hướng nhiệm vụ năm 2027",
       "description": "Biểu quyết thông qua toàn văn Báo cáo số 45/BC-UBND của UBND xã Phước Trà về kết quả đạt được và chỉ tiêu phát triển KTXH năm 2027.",
       "default_duration": 30,
-      "status": "voting",
+      "status": "locked",
       "required_ratio": 0.5
     },
     {
