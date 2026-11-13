@@ -98,30 +98,69 @@ const INITIAL_DATA = {
   votes: []
 };
 
-// Đọc dữ liệu từ file
+// Quản lý bộ nhớ đệm (In-Memory Cache) & Ghi đĩa an toàn, tối ưu tải đồng thời cao (>100 truy cập/giây)
+let memoryDb = null;
+let isWriting = false;
+let hasPendingWrite = false;
+
+// Đọc dữ liệu (ưu tiên bộ nhớ RAM siêu tốc, 0ms, không nghẽn I/O ổ đĩa)
 function readDb() {
+  if (memoryDb) return memoryDb;
   try {
     if (!fs.existsSync(DB_FILE)) {
-      writeDb(INITIAL_DATA);
-      return JSON.parse(JSON.stringify(INITIAL_DATA));
+      memoryDb = JSON.parse(JSON.stringify(INITIAL_DATA));
+      saveDbImmediate(memoryDb);
+      return memoryDb;
     }
     const content = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(content);
+    memoryDb = JSON.parse(content);
+    return memoryDb;
   } catch (error) {
     console.error("Lỗi đọc cơ sở dữ liệu:", error);
-    return INITIAL_DATA;
+    memoryDb = JSON.parse(JSON.stringify(INITIAL_DATA));
+    return memoryDb;
   }
 }
 
-// Ghi dữ liệu an toàn (Atomic Write)
-function writeDb(data) {
+// Ghi đĩa đồng bộ tức thì (dùng khi khởi tạo hoặc reset)
+function saveDbImmediate(data) {
   try {
     const tempFile = `${DB_FILE}.tmp`;
     fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tempFile, DB_FILE);
   } catch (error) {
-    console.error("Lỗi ghi cơ sở dữ liệu:", error);
+    console.error("Lỗi ghi cơ sở dữ liệu tức thì:", error);
   }
+}
+
+// Ghi dữ liệu an toàn theo hàng đợi (Serialized Async Queue)
+// Đảm bảo khi 18+ đại biểu cùng bấm biểu quyết ở cùng 1 tích tắc, không bị xung đột khóa file (EBUSY) trên Windows/Linux
+function writeDb(data) {
+  memoryDb = data; // Cập nhật ngay lập tức trong RAM (đơn luồng Node.js không bao giờ race condition)
+
+  if (isWriting) {
+    hasPendingWrite = true;
+    return;
+  }
+
+  isWriting = true;
+  hasPendingWrite = false;
+
+  setImmediate(() => {
+    try {
+      const snapshot = JSON.stringify(memoryDb, null, 2);
+      const tempFile = `${DB_FILE}.tmp`;
+      fs.writeFileSync(tempFile, snapshot, 'utf8');
+      fs.renameSync(tempFile, DB_FILE);
+    } catch (error) {
+      console.error("Lỗi ghi cơ sở dữ liệu async:", error);
+    } finally {
+      isWriting = false;
+      if (hasPendingWrite) {
+        writeDb(memoryDb);
+      }
+    }
+  });
 }
 
 class Database {
@@ -422,7 +461,8 @@ class Database {
 
   // Khôi phục dữ liệu ban đầu nếu cần
   static resetToDefault() {
-    writeDb(INITIAL_DATA);
+    memoryDb = JSON.parse(JSON.stringify(INITIAL_DATA));
+    saveDbImmediate(memoryDb);
     return true;
   }
 }

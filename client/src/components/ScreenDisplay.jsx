@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
-import { Maximize2, Minimize2, CheckCircle2, XCircle, HelpCircle, Users, Award, Shield, Check } from 'lucide-react';
+import { Maximize2, Minimize2, CheckCircle2, XCircle, HelpCircle, Users, Award, Shield, Check, Clock } from 'lucide-react';
+import NationalEmblem from './NationalEmblem';
+import NationalFlag from './NationalFlag';
 
 export default function ScreenDisplay({ state }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -16,8 +18,8 @@ export default function ScreenDisplay({ state }) {
   useEffect(() => {
     if (votingStatus === 'published' && results && results.is_passed) {
       confetti({
-        particleCount: 100,
-        spread: 80,
+        particleCount: 120,
+        spread: 90,
         origin: { y: 0.6 }
       });
     }
@@ -33,31 +35,35 @@ export default function ScreenDisplay({ state }) {
 
   const delegates = state.delegates || [];
   const presentCount = delegates.filter(d => d.is_present).length;
-  const totalDelegates = session?.total_delegates || (delegates.length > 0 ? delegates.length : 25);
-  // Số đại biểu có mặt: tính trực tiếp từ danh sách đại biểu
+  const totalDelegates = session?.total_delegates || (delegates.length > 0 ? delegates.length : 17);
   const presentDelegates = delegates.length > 0 ? presentCount : (results?.present_delegates ?? totalDelegates);
-  // Số đại biểu vắng mặt: Bằng Tổng triệu tập - Có mặt (đúng luật tổ chức HĐND)
   const absentDelegates = Math.max(0, totalDelegates - presentDelegates);
   const totalVoted = results?.total_voted || 0;
   const voteProgressPercent = presentDelegates > 0 ? Math.round((totalVoted / presentDelegates) * 100) : 0;
+  const delegateStatusList = results?.delegate_status_list || delegates.map(d => ({
+    id: d.id,
+    seat_number: d.seat_number,
+    name: d.name,
+    is_present: d.is_present,
+    is_online: d.is_online,
+    has_voted: false
+  }));
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col justify-between p-4 md:p-8 select-none overflow-x-hidden font-sans">
+    <div className="min-h-screen bg-[#0a0f1d] text-white flex flex-col justify-between p-4 md:p-6 select-none overflow-x-hidden font-sans">
       {/* 1. KHỐI TIÊU ĐỀ TRANG TRỌNG CHUẨN CƠ QUAN NHÀ NƯỚC */}
       <header className="border-b-2 border-red-700/60 pb-4 relative">
         <div className="flex items-center justify-between">
-          {/* Biểu trưng cờ / Quốc huy */}
+          {/* Biểu trưng Quốc huy & Tiêu ngữ Quốc gia */}
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-red-600 via-red-500 to-yellow-500 p-1 flex items-center justify-center shadow-lg shadow-red-900/50">
-              <div className="w-full h-full bg-red-700 rounded-full flex flex-col items-center justify-center text-yellow-400 font-bold border-2 border-yellow-400/80">
-                <span className="text-2xl leading-none">★</span>
-                <span className="text-[9px] uppercase font-black tracking-tighter">HĐND</span>
-              </div>
-            </div>
+            <NationalEmblem size={74} className="hover:scale-105 transition-transform" />
             <div>
-              <p className="text-xs uppercase tracking-widest text-yellow-400 font-bold">
-                CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
-              </p>
+              <div className="flex items-center gap-2 mb-1">
+                <NationalFlag className="w-5 h-3.5 shadow" />
+                <p className="text-xs uppercase tracking-widest text-yellow-400 font-black">
+                  CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM • ĐỘC LẬP - TỰ DO - HẠNH PHÚC
+                </p>
+              </div>
               <h1 className="text-xl md:text-3xl font-black uppercase tracking-wide text-white drop-shadow-md">
                 {session ? session.name : "HỘI ĐỒNG NHÂN DÂN XÃ PHƯỚC TRÀ"}
               </h1>
@@ -71,7 +77,7 @@ export default function ScreenDisplay({ state }) {
           <div className="flex items-center gap-3">
             <button
               onClick={toggleFullscreen}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition border border-slate-700"
+              className="p-2.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition border border-slate-700 shadow"
               title="Chế độ toàn màn hình F11"
             >
               {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
@@ -110,9 +116,9 @@ export default function ScreenDisplay({ state }) {
       </header>
 
       {/* 2. KHỐI TRUNG TÂM: NỘI DUNG BIỂU QUYẾT & TIẾN ĐỘ THỜI GIAN THỰC */}
-      <main className="my-6 flex-1 flex flex-col justify-center">
+      <main className="my-4 flex-1 flex flex-col justify-center">
         {currentAgenda ? (
-          <div className="max-w-5xl mx-auto w-full space-y-6">
+          <div className="max-w-5xl mx-auto w-full space-y-5">
             {/* THẺ TÊN NGHỊ QUYẾT / CHỈ TIÊU */}
             <div className="bg-gradient-to-b from-slate-800 to-slate-800/90 border-2 border-yellow-500/40 rounded-3xl p-6 md:p-8 text-center shadow-2xl relative overflow-hidden">
               <div className="inline-block bg-yellow-400 text-slate-900 font-black text-xs md:text-sm uppercase px-4 py-1.5 rounded-full mb-3 shadow">
@@ -131,14 +137,14 @@ export default function ScreenDisplay({ state }) {
 
               {/* TRẠNG THÁI 1: ĐANG BIỂU QUYẾT (ĐỒNG HỒ ĐẾM NGƯỢC VÀ TIẾN ĐỘ BỎ PHIẾU) */}
               {votingStatus === 'voting' && (
-                <div className="mt-8 pt-6 border-t border-slate-700/80">
+                <div className="mt-6 pt-6 border-t border-slate-700/80">
                   <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12">
                     {/* Đồng hồ đếm ngược vi tính cực lớn */}
                     <div className="flex flex-col items-center">
                       <span className="text-xs font-bold uppercase tracking-widest text-red-400 mb-1">
                         THỜI GIAN CÒN LẠI
                       </span>
-                      <div className="w-28 h-28 md:w-36 md:h-36 rounded-2xl bg-gradient-to-b from-red-600 to-red-800 border-4 border-yellow-400 shadow-xl shadow-red-900/60 flex items-center justify-center text-white font-mono font-black text-5xl md:text-6xl animate-pulse-fast">
+                      <div className="w-28 h-28 md:w-36 md:h-36 rounded-2xl bg-gradient-to-b from-red-600 to-red-800 border-4 border-yellow-400 shadow-xl shadow-red-900/60 flex items-center justify-center text-white font-mono font-black text-5xl md:text-6xl animate-pulse">
                         {timeRemaining}s
                       </div>
                     </div>
@@ -161,8 +167,39 @@ export default function ScreenDisplay({ state }) {
                       </div>
 
                       <p className="text-xs text-slate-400 mt-2 italic text-center md:text-left">
-                        * Quý đại biểu thực hiện biểu quyết bằng cách chạm nút trên máy tính bảng cá nhân
+                        * Quý đại biểu chạm chọn biểu quyết trên máy tính bảng cá nhân
                       </p>
+                    </div>
+                  </div>
+
+                  {/* SƠ ĐỒ 17 GHẾ ĐẠI BIỂU HỘI TRƯỜNG THEO THỜI GIAN THỰC */}
+                  <div className="mt-6 pt-4 border-t border-slate-700/60">
+                    <p className="text-xs font-bold uppercase text-slate-400 mb-2.5 tracking-wider">
+                      Sơ đồ trạng thái điểm danh & biểu quyết hội trường (17 đại biểu):
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {delegateStatusList.map((del) => {
+                        const voted = del.has_voted;
+                        return (
+                          <div
+                            key={del.id}
+                            title={`${del.seat_number} - ${del.name}: ${voted ? 'Đã bỏ phiếu' : 'Chưa bỏ phiếu'}`}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                              voted
+                                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/40'
+                                : del.is_present
+                                ? 'bg-slate-900 border-slate-700 text-slate-400'
+                                : 'bg-rose-950/40 border-rose-800 text-rose-400/60'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{
+                              backgroundColor: voted ? '#10B981' : (del.is_present ? '#F59E0B' : '#EF4444')
+                            }}></span>
+                            <span className="font-mono font-bold">{del.seat_number}</span>
+                            <span className="hidden sm:inline text-[11px] truncate max-w-[90px]">{del.name.split(' ').slice(-1)[0]}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -180,7 +217,7 @@ export default function ScreenDisplay({ state }) {
 
               {/* TRẠNG THÁI 3: CÔNG BỐ KẾT QUẢ (HIỂN THỊ CÁC CỘT SỐ LIỆU VÀ KẾT LUẬN THÔNG QUA) */}
               {votingStatus === 'published' && results && (
-                <div className="mt-8 pt-6 border-t border-slate-700/80 animate-in fade-in zoom-in-95">
+                <div className="mt-6 pt-6 border-t border-slate-700/80 animate-in fade-in zoom-in-95">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6">
                     {/* Cột 1: TÁN THÀNH */}
                     <div className="bg-gradient-to-b from-emerald-950/80 to-emerald-900/60 border-2 border-emerald-500 rounded-2xl p-5 text-center shadow-lg">
@@ -255,10 +292,8 @@ export default function ScreenDisplay({ state }) {
             </div>
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto text-center py-16 px-6 bg-slate-800/60 border border-slate-700/80 rounded-3xl shadow-xl">
-            <div className="w-20 h-20 bg-red-950/80 border-2 border-yellow-400/60 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-400 text-3xl shadow">
-              ★
-            </div>
+          <div className="max-w-2xl mx-auto text-center py-12 px-6 bg-slate-800/60 border border-slate-700/80 rounded-3xl shadow-xl">
+            <NationalEmblem size={88} className="mx-auto mb-4" />
             <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-wide">
               {allResults.length === 0 ? "CHƯA CÓ CHỈ TIÊU BIỂU QUYẾT NÀO" : "CHỜ CHỦ TỌA PHÁT LỆNH BIỂU QUYẾT"}
             </h2>
@@ -273,7 +308,7 @@ export default function ScreenDisplay({ state }) {
 
       {/* 3. BẢNG TỔNG HỢP XUYÊN SUỐT CÁC CHỈ TIÊU ĐÃ BIỂU QUYẾT TRONG KỲ HỌP */}
       {allResults.length > 0 && (
-        <footer className="border-t border-slate-800 pt-4 mt-auto">
+        <footer className="border-t border-slate-800 pt-3 mt-auto">
           <h3 className="text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2 flex items-center gap-2">
             <span>DANH SÁCH XUYÊN SUỐT CÁC CHỈ TIÊU BIỂU QUYẾT TRONG KỲ HỌP:</span>
           </h3>

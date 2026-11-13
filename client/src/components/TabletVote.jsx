@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { socket } from '../socket';
-import { CheckCircle2, XCircle, HelpCircle, User, LogOut, Clock, ShieldCheck, AlertCircle, Wifi } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, LogOut, Clock, ShieldCheck, AlertCircle, Wifi } from 'lucide-react';
+import NationalEmblem from './NationalEmblem';
+import NationalFlag from './NationalFlag';
+import { sounds } from '../utils/sound';
 
 export default function TabletVote({ state }) {
   const [selectedDelegateId, setSelectedDelegateId] = useState(() => {
@@ -11,7 +14,7 @@ export default function TabletVote({ state }) {
   const [pinError, setPinError] = useState('');
   const [showPinModal, setShowPinModal] = useState(false);
   const [candidateDelegate, setCandidateDelegate] = useState(null);
-  const [hasVibrated, setHasVibrated] = useState(false);
+  const [hasNotifiedVoting, setHasNotifiedVoting] = useState(false);
 
   const delegates = state.delegates || [];
   const currentDelegate = delegates.find(d => d.id === selectedDelegateId);
@@ -38,17 +41,18 @@ export default function TabletVote({ state }) {
     }
   }, [selectedDelegateId]);
 
-  // Rung máy tính bảng và chuông báo khi có phiên biểu quyết mới mở ra
+  // Rung máy tính bảng và phát chuông báo khi có phiên biểu quyết mới mở ra
   useEffect(() => {
-    if (votingStatus === 'voting' && !hasVibrated) {
+    if (votingStatus === 'voting' && !hasNotifiedVoting) {
       if ('vibrate' in navigator) {
         try { navigator.vibrate([200, 100, 200]); } catch (e) {}
       }
-      setHasVibrated(true);
+      sounds.playStartVoting();
+      setHasNotifiedVoting(true);
     } else if (votingStatus !== 'voting') {
-      setHasVibrated(false);
+      setHasNotifiedVoting(false);
     }
-  }, [votingStatus, hasVibrated]);
+  }, [votingStatus, hasNotifiedVoting]);
 
   // Xử lý chọn đại biểu
   const handleSelectDelegate = (del) => {
@@ -81,7 +85,7 @@ export default function TabletVote({ state }) {
   };
 
   const handleLogout = () => {
-    if (window.confirm('Bạn có chắc chắn muốn đổi đại biểu đăng nhập?')) {
+    if (window.confirm('Bạn có chắc chắn muốn đổi đại biểu đăng nhập trên máy tính bảng này?')) {
       localStorage.removeItem('evote_delegate_id');
       setSelectedDelegateId('');
       setMyVote(null);
@@ -96,6 +100,7 @@ export default function TabletVote({ state }) {
     if ('vibrate' in navigator) {
       try { navigator.vibrate(100); } catch (e) {}
     }
+    sounds.playVoteSuccess();
 
     setMyVote(choice);
     socket.emit('submit_vote', {
@@ -116,51 +121,63 @@ export default function TabletVote({ state }) {
     }, {});
 
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200">
-          <div className="bg-gradient-to-r from-red-700 to-red-800 text-white p-6 text-center shadow-md">
-            <div className="w-16 h-16 bg-yellow-400 text-red-800 rounded-full flex items-center justify-center font-bold text-2xl mx-auto mb-2 shadow-inner">
-              ★
+      <div className="max-w-4xl mx-auto px-4 py-6 md:py-10">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+          {/* Header Quốc huy & Tên HĐND */}
+          <div className="bg-gradient-to-r from-red-800 via-red-700 to-red-800 text-white p-6 md:p-8 text-center shadow-lg relative">
+            <div className="flex flex-col items-center justify-center">
+              <NationalEmblem size={84} className="mb-3 hover:scale-105 transition-transform" />
+              <div className="flex items-center gap-2 mb-1">
+                <NationalFlag className="w-5 h-3.5 shadow" />
+                <p className="text-xs uppercase tracking-widest text-yellow-300 font-extrabold">
+                  CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+                </p>
+              </div>
+              <h1 className="text-xl md:text-3xl font-black uppercase tracking-wide">
+                HỘI ĐỒNG NHÂN DÂN XÃ PHƯỚC TRÀ
+              </h1>
+              <p className="text-yellow-200 text-xs md:text-sm mt-1 font-semibold">
+                Kỳ họp HĐND Khóa XII • Hệ thống Biểu quyết Điện tử Đại biểu
+              </p>
             </div>
-            <h1 className="text-xl md:text-2xl font-bold uppercase tracking-wide">
-              HỘI ĐỒNG NHÂN DÂN XÃ PHƯỚC TRÀ
-            </h1>
-            <p className="text-yellow-200 text-sm mt-1 font-medium">
-              Kỳ họp HĐND Khóa XII - Thiết bị biểu quyết điện tử
-            </p>
           </div>
 
           <div className="p-6 md:p-8">
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-200">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">Chọn Đại biểu sử dụng máy này:</h2>
-                <p className="text-sm text-slate-500">Chạm vào tên của quý Đại biểu để bắt đầu phiên biểu quyết</p>
+                <h2 className="text-lg md:text-xl font-bold text-slate-900">
+                  Chọn Đại biểu sử dụng thiết bị này:
+                </h2>
+                <p className="text-xs md:text-sm text-slate-500">
+                  Chạm vào họ và tên của Quý đại biểu để vào phiên biểu quyết
+                </p>
               </div>
-              <div className="flex items-center gap-2 text-xs bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-200">
+              <div className="flex items-center gap-2 text-xs bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-full border border-emerald-200 w-fit">
                 <Wifi className="w-4 h-4 text-emerald-600 animate-pulse" />
-                <span>Mạng nội bộ sẵn sàng</span>
+                <span className="font-semibold">Hệ thống mạng sẵn sàng</span>
               </div>
             </div>
 
             <div className="space-y-6">
               {Object.entries(groupedDelegates).map(([groupName, groupDels]) => (
                 <div key={groupName} className="space-y-3">
-                  <h3 className="text-sm font-bold uppercase text-red-700 tracking-wider bg-red-50 px-3 py-1.5 rounded-lg border-l-4 border-red-600">
+                  <h3 className="text-xs md:text-sm font-bold uppercase text-red-800 tracking-wider bg-red-50 px-3 py-2 rounded-xl border-l-4 border-red-700">
                     {groupName} ({groupDels.length} đại biểu)
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {groupDels.map((del) => (
                       <button
                         key={del.id}
+                        type="button"
                         onClick={() => handleSelectDelegate(del)}
-                        className="flex items-center p-3.5 bg-slate-50 hover:bg-red-50 rounded-xl border border-slate-200 hover:border-red-400 transition-all text-left shadow-sm active:scale-95"
+                        className="flex items-center p-3.5 bg-slate-50 hover:bg-red-50/80 rounded-2xl border border-slate-200 hover:border-red-400 transition-all text-left shadow-sm active:scale-95"
                       >
-                        <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 font-bold flex items-center justify-center shrink-0 mr-3 border border-red-200">
-                          {del.seat_number.replace('ĐB-', '')}
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-red-600 to-red-700 text-white font-extrabold flex items-center justify-center shrink-0 mr-3 shadow-sm text-sm">
+                          {del.seat_number}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-800 text-sm truncate">{del.name}</p>
-                          <p className="text-xs text-slate-500 truncate">{del.title}</p>
+                          <p className="font-bold text-slate-900 text-sm truncate">{del.name}</p>
+                          <p className="text-xs text-slate-500 truncate font-medium">{del.title}</p>
                         </div>
                       </button>
                     ))}
@@ -173,45 +190,45 @@ export default function TabletVote({ state }) {
 
         {/* Modal Nhập PIN */}
         {showPinModal && candidateDelegate && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-in fade-in zoom-in-95">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
               <div className="text-center mb-4">
-                <div className="w-12 h-12 bg-red-100 text-red-700 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <ShieldCheck className="w-7 h-7" />
+                <div className="w-14 h-14 bg-red-100 text-red-700 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-inner">
+                  <ShieldCheck className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800">Xác thực Đại biểu</h3>
-                <p className="text-sm text-slate-600 font-medium">{candidateDelegate.name}</p>
-                <p className="text-xs text-slate-400">{candidateDelegate.seat_number} - {candidateDelegate.title}</p>
+                <h3 className="text-lg font-bold text-slate-900">Xác thực Đại biểu</h3>
+                <p className="text-base text-red-700 font-extrabold mt-1">{candidateDelegate.name}</p>
+                <p className="text-xs text-slate-500">{candidateDelegate.seat_number} • {candidateDelegate.title}</p>
               </div>
 
               <form onSubmit={handleVerifyPin} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Nhập mã PIN 4 số (Mặc định: {candidateDelegate.pin}):
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 text-center">
+                    Nhập mã PIN cá nhân (Mặc định: {candidateDelegate.pin}):
                   </label>
                   <input
                     type="password"
                     maxLength={6}
                     value={pinInput}
                     onChange={(e) => setPinInput(e.target.value)}
-                    placeholder="Nhập mã PIN..."
+                    placeholder="••••"
                     autoFocus
-                    className="w-full text-center text-2xl tracking-widest font-mono py-2.5 px-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-600 focus:border-red-600 outline-none"
+                    className="w-full text-center text-3xl tracking-widest font-mono py-2.5 px-4 border-2 border-slate-300 rounded-2xl focus:ring-4 focus:ring-red-100 focus:border-red-600 outline-none transition"
                   />
-                  {pinError && <p className="text-xs text-rose-600 mt-1.5">{pinError}</p>}
+                  {pinError && <p className="text-xs text-rose-600 mt-2 text-center font-medium">{pinError}</p>}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowPinModal(false)}
-                    className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition"
+                    className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition shadow-md"
+                    className="flex-1 py-3 px-4 bg-red-700 hover:bg-red-800 text-white font-bold rounded-xl text-sm transition shadow-md active:scale-95"
                   >
                     Xác nhận
                   </button>
@@ -224,19 +241,20 @@ export default function TabletVote({ state }) {
     );
   }
 
-  // MÀN HÌNH 2: ĐÃ ĐĂNG NHẬP TRÊN TABLET
+  // MÀN HÌNH 2: ĐÃ ĐĂNG NHẬP TRÊN TABLET (CHỈ DÀNH CHO BIỂU QUYẾT)
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col justify-between pb-6">
       {/* Thanh Header Thông Tin Đại Biểu */}
       <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-red-600 to-red-700 text-white flex items-center justify-center font-extrabold text-base shadow">
-              {currentDelegate.seat_number}
-            </div>
+            <NationalEmblem size={42} className="shrink-0" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-slate-900 text-base md:text-lg">{currentDelegate.name}</span>
+                <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg">
+                  {currentDelegate.seat_number}
+                </span>
                 <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
                   currentDelegate.is_present
                     ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
@@ -254,8 +272,8 @@ export default function TabletVote({ state }) {
           <div className="flex items-center gap-2">
             <button
               onClick={handleLogout}
-              title="Đổi đại biểu"
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-700 bg-slate-100 hover:bg-red-50 px-3 py-2 rounded-xl transition border border-slate-200"
+              title="Đổi đại biểu sử dụng máy này"
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-700 bg-slate-100 hover:bg-red-50 px-3 py-2 rounded-xl transition border border-slate-200 font-medium"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Đổi ĐB</span>
@@ -268,9 +286,9 @@ export default function TabletVote({ state }) {
       <main className="max-w-3xl mx-auto px-4 py-6 w-full flex-1 flex flex-col justify-center">
         {/* NỘI DUNG CHỈ TIÊU BIỂU QUYẾT */}
         {currentAgenda ? (
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden mb-6 transition-all">
-            <div className="bg-slate-800 text-white px-5 py-3.5 flex items-center justify-between">
-              <span className="font-bold text-xs uppercase tracking-wider text-yellow-400 bg-slate-900/60 px-2.5 py-1 rounded">
+          <div className="bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden mb-6 transition-all">
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-5 py-3.5 flex items-center justify-between">
+              <span className="font-bold text-xs uppercase tracking-wider text-yellow-400 bg-slate-950/60 px-3 py-1 rounded-full border border-yellow-400/30">
                 Chỉ tiêu số 0{currentAgenda.order_num}
               </span>
               <span className="font-semibold text-xs text-slate-300">
@@ -283,7 +301,7 @@ export default function TabletVote({ state }) {
                 {currentAgenda.title}
               </h2>
               {currentAgenda.description && (
-                <p className="text-sm text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-100 leading-relaxed">
+                <p className="text-sm text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 leading-relaxed">
                   {currentAgenda.description}
                 </p>
               )}
@@ -313,7 +331,7 @@ export default function TabletVote({ state }) {
                 {votingStatus === 'locked' && (
                   <div className="flex items-center gap-2 text-amber-700 bg-amber-50 px-3.5 py-1.5 rounded-xl text-xs font-bold border border-amber-200">
                     <AlertCircle className="w-4 h-4" />
-                    <span>ĐÃ KHÓA BIỂU QUYẾT (Đang chờ công bố kết quả)</span>
+                    <span>ĐÃ KHÓA BIỂU QUYẾT (Đang tổng hợp kết quả)</span>
                   </div>
                 )}
 
@@ -329,9 +347,9 @@ export default function TabletVote({ state }) {
                   <div className="text-xs font-bold text-slate-600">
                     Phiếu của bạn: {' '}
                     <span className={
-                      myVote === 'agree' ? 'text-emerald-600 font-extrabold uppercase' :
-                      myVote === 'disagree' ? 'text-rose-600 font-extrabold uppercase' :
-                      'text-amber-600 font-extrabold uppercase'
+                      myVote === 'agree' ? 'text-emerald-600 font-black uppercase' :
+                      myVote === 'disagree' ? 'text-rose-600 font-black uppercase' :
+                      'text-amber-600 font-black uppercase'
                     }>
                       {myVote === 'agree' ? 'Tán thành' : myVote === 'disagree' ? 'Không tán thành' : 'Không có ý kiến'}
                     </span>
@@ -341,9 +359,9 @@ export default function TabletVote({ state }) {
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl p-8 text-center shadow-md border border-slate-200 mb-6">
-            <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-slate-700">
+          <div className="bg-white rounded-3xl p-8 text-center shadow-md border border-slate-200 mb-6">
+            <NationalEmblem size={64} className="mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-slate-800">
               {(!state.agendas || state.agendas.length === 0)
                 ? "Chưa có chỉ tiêu biểu quyết nào"
                 : "Chờ phiên biểu quyết tiếp theo"}
@@ -368,7 +386,7 @@ export default function TabletVote({ state }) {
               <button
                 type="button"
                 onClick={() => handleVote('agree')}
-                className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-all shadow-md active:scale-95 border-4 min-h-[140px] ${
+                className={`flex flex-col items-center justify-center p-6 rounded-3xl transition-all shadow-lg active:scale-95 border-4 min-h-[140px] ${
                   myVote === 'agree'
                     ? 'bg-emerald-600 text-white border-emerald-400 ring-4 ring-emerald-300 shadow-emerald-200 scale-102'
                     : 'bg-emerald-500 hover:bg-emerald-600 text-white border-transparent'
@@ -392,7 +410,7 @@ export default function TabletVote({ state }) {
               <button
                 type="button"
                 onClick={() => handleVote('disagree')}
-                className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-all shadow-md active:scale-95 border-4 min-h-[140px] ${
+                className={`flex flex-col items-center justify-center p-6 rounded-3xl transition-all shadow-lg active:scale-95 border-4 min-h-[140px] ${
                   myVote === 'disagree'
                     ? 'bg-rose-600 text-white border-rose-400 ring-4 ring-rose-300 shadow-rose-200 scale-102'
                     : 'bg-rose-500 hover:bg-rose-600 text-white border-transparent'
@@ -416,7 +434,7 @@ export default function TabletVote({ state }) {
               <button
                 type="button"
                 onClick={() => handleVote('neutral')}
-                className={`flex flex-col items-center justify-center p-6 rounded-2xl transition-all shadow-md active:scale-95 border-4 min-h-[140px] ${
+                className={`flex flex-col items-center justify-center p-6 rounded-3xl transition-all shadow-lg active:scale-95 border-4 min-h-[140px] ${
                   myVote === 'neutral'
                     ? 'bg-amber-500 text-white border-amber-300 ring-4 ring-amber-200 shadow-amber-200 scale-102'
                     : 'bg-amber-400 hover:bg-amber-500 text-slate-900 border-transparent'
@@ -438,13 +456,13 @@ export default function TabletVote({ state }) {
             </div>
 
             {myVote && (
-              <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 text-center text-xs text-emerald-800 font-semibold animate-in fade-in">
+              <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-3 text-center text-xs text-emerald-800 font-semibold animate-in fade-in">
                 Đã ghi nhận phiếu biểu quyết thành công! Quý đại biểu có thể bấm chọn phương án khác trước khi hết thời gian đếm ngược.
               </div>
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center shadow-sm">
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 text-center shadow-sm">
             {votingStatus === 'idle' && (
               <div className="py-4">
                 <Clock className="w-10 h-10 text-amber-500 mx-auto mb-2" />
@@ -509,7 +527,7 @@ export default function TabletVote({ state }) {
 
       {/* Footer nhỏ gọn */}
       <footer className="text-center text-xs text-slate-400">
-        HĐND Xã Phước Trà • Hệ thống biểu quyết điện tử đại biểu
+        HĐND Xã Phước Trà • Thiết bị biểu quyết điện tử đại biểu
       </footer>
     </div>
   );

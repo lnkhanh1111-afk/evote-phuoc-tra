@@ -4,6 +4,8 @@ import {
   Play, Square, Plus, RotateCcw, Eye, Sparkles, Users, CheckCircle,
   XCircle, Clock, FileText, Check, Settings, Shield, PlusCircle, Trash2, Edit3, Printer, Tv, Tablet
 } from 'lucide-react';
+import NationalEmblem from './NationalEmblem';
+import NationalFlag from './NationalFlag';
 
 export default function AdminDashboard({ state }) {
   const [activeTab, setActiveTab] = useState('controller'); // 'controller' | 'agendas' | 'delegates' | 'report'
@@ -207,32 +209,36 @@ export default function AdminDashboard({ state }) {
     <div className="min-h-screen bg-slate-100 p-4 md:p-6 font-sans">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* THANH HEADER ĐIỀU HÀNH */}
-        <header className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="bg-red-700 text-white text-xs font-black uppercase px-2.5 py-1 rounded">
-                BÀN ĐIỀU HÀNH THƯ KÝ / CHỦ TỌA
-              </span>
-              <span className="text-xs text-slate-500 font-medium">HĐND XÃ PHƯỚC TRÀ</span>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3 mt-1.5">
-              <h1 className="text-xl md:text-2xl font-black text-slate-900">
-                {session?.name || "Kỳ họp Hội đồng nhân dân xã Phước Trà"}
-              </h1>
-              <button
-                onClick={handleOpenEditSession}
-                className="flex items-center gap-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-xl border border-red-200 transition shadow-sm active:scale-95"
-                title="Sửa tên cuộc họp và tổng số đại biểu triệu tập"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Sửa Tên & Số ĐB Triệu Tập</span>
-              </button>
-            </div>
+        <header className="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <NationalEmblem size={60} className="hidden sm:block shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <NationalFlag className="w-4 h-3 shadow-sm" />
+                <span className="bg-red-700 text-white text-[11px] font-black uppercase px-2.5 py-0.5 rounded">
+                  BÀN ĐIỀU HÀNH THƯ KÝ / CHỦ TỌA
+                </span>
+                <span className="text-xs text-slate-500 font-semibold">HĐND XÃ PHƯỚC TRÀ</span>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                <h1 className="text-xl md:text-2xl font-black text-slate-900">
+                  {session?.name || "Kỳ họp Hội đồng nhân dân xã Phước Trà"}
+                </h1>
+                <button
+                  onClick={handleOpenEditSession}
+                  className="flex items-center gap-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-xl border border-red-200 transition shadow-sm active:scale-95"
+                  title="Sửa tên cuộc họp và tổng số đại biểu triệu tập"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Sửa Tên & Số ĐB Triệu Tập</span>
+                </button>
+              </div>
 
-            <p className="text-xs text-slate-500 mt-1">
-              Tổng số ĐB triệu tập: <b className="text-slate-800 text-sm font-mono">{totalDelegatesCount} ĐB</b> | Có mặt: <b className="text-emerald-700 text-sm font-mono">{presentCount} ĐB</b> | Vắng mặt: <b className="text-rose-700 text-sm font-mono">{absentCount} ĐB</b> | Tablet Online: <b className="text-blue-700 text-sm font-mono">{onlineCount}</b>
-            </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tổng số ĐB triệu tập: <b className="text-slate-800 text-sm font-mono">{totalDelegatesCount} ĐB</b> | Có mặt: <b className="text-emerald-700 text-sm font-mono">{presentCount} ĐB</b> | Vắng mặt: <b className="text-rose-700 text-sm font-mono">{absentCount} ĐB</b> | Tablet Online: <b className="text-blue-700 text-sm font-mono">{onlineCount}</b>
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
