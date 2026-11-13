@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: evote-phuoc-tra
+    env: node
+    plan: free
+    region: singapore # Chọn Singapore để tốc độ mạng về Việt Nam nhanh nhất (< 40ms)
+    buildCommand: npm run render-build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
