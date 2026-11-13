@@ -75,6 +75,22 @@ app.get('/api/session/active', (req, res) => {
   res.json(session);
 });
 
+app.put('/api/session/active', (req, res) => {
+  const activeSession = Database.getActiveSession();
+  if (activeSession) {
+    const { name, total_delegates, location, date } = req.body;
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (total_delegates !== undefined) updates.total_delegates = parseInt(total_delegates, 10);
+    if (location !== undefined) updates.location = location;
+    if (date !== undefined) updates.date = date;
+    const updated = Database.updateSessionState(activeSession.id, updates);
+    broadcastFullState();
+    return res.json(updated);
+  }
+  res.status(404).json({ error: 'Không tìm thấy kỳ họp hoạt động' });
+});
+
 app.get('/api/sessions', (req, res) => {
   res.json(Database.getSessions());
 });

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { socket, API_URL } from '../socket';
 import {
   Play, Square, Plus, RotateCcw, Eye, Sparkles, Users, CheckCircle,
-  XCircle, Clock, FileText, Check, Settings, Shield, PlusCircle, Trash2, Edit3, Printer
+  XCircle, Clock, FileText, Check, Settings, Shield, PlusCircle, Trash2, Edit3, Printer, Tv, Tablet
 } from 'lucide-react';
 
 export default function AdminDashboard({ state }) {
@@ -30,7 +30,38 @@ export default function AdminDashboard({ state }) {
     pin: ''
   });
 
+  // Form sửa thông tin kỳ họp / cuộc họp
+  const [showEditSessionModal, setShowEditSessionModal] = useState(false);
+  const [sessionForm, setSessionForm] = useState({
+    name: '',
+    total_delegates: 25,
+    location: '',
+    date: ''
+  });
+
   const session = state.session;
+
+  const handleOpenEditSession = () => {
+    if (session) {
+      setSessionForm({
+        name: session.name || '',
+        total_delegates: session.total_delegates || 25,
+        location: session.location || '',
+        date: session.date || ''
+      });
+    }
+    setShowEditSessionModal(true);
+  };
+
+  const handleSaveSession = async (e) => {
+    e.preventDefault();
+    await fetch(`${API_URL}/api/session/active`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionForm)
+    });
+    setShowEditSessionModal(false);
+  };
   const currentAgenda = state.currentAgenda;
   const results = state.results;
   const agendas = state.agendas || [];
@@ -151,15 +182,50 @@ export default function AdminDashboard({ state }) {
               </span>
               <span className="text-xs text-slate-500 font-medium">HĐND XÃ PHƯỚC TRÀ</span>
             </div>
-            <h1 className="text-xl md:text-2xl font-black text-slate-900 mt-1">
-              {session?.name || "Kỳ họp Hội đồng nhân dân xã Phước Trà"}
-            </h1>
-            <p className="text-xs text-slate-500">
-              Tổng số ĐB triệu tập: <b>{session?.total_delegates || 25}</b> | Có mặt: <b className="text-emerald-700">{presentCount}</b> | Vắng mặt: <b className="text-rose-700">{delegates.length - presentCount}</b> | Máy tính bảng Online: <b className="text-blue-700">{onlineCount}</b>
+            
+            <div className="flex flex-wrap items-center gap-3 mt-1.5">
+              <h1 className="text-xl md:text-2xl font-black text-slate-900">
+                {session?.name || "Kỳ họp Hội đồng nhân dân xã Phước Trà"}
+              </h1>
+              <button
+                onClick={handleOpenEditSession}
+                className="flex items-center gap-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-xl border border-red-200 transition shadow-sm active:scale-95"
+                title="Sửa tên cuộc họp và tổng số đại biểu triệu tập"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Sửa Tên & Số ĐB Triệu Tập</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-1">
+              Tổng số ĐB triệu tập: <b className="text-slate-800 text-sm">{session?.total_delegates || 25}</b> | Có mặt: <b className="text-emerald-700 text-sm">{presentCount}</b> | Vắng mặt: <b className="text-rose-700 text-sm">{delegates.length - presentCount}</b> | Tablet Online: <b className="text-blue-700 text-sm">{onlineCount}</b>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Nút mở các màn hình riêng biệt sang Tab mới */}
+            <a
+              href="#screen"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-white bg-slate-100 hover:bg-slate-900 px-3 py-2.5 rounded-xl transition border border-slate-200 font-bold shadow-sm"
+              title="Mở màn hình trình chiếu LED trong tab mới"
+            >
+              <Tv className="w-3.5 h-3.5 text-red-600" />
+              <span>Màn Hình LED</span>
+            </a>
+
+            <a
+              href="#tablet"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-white bg-slate-100 hover:bg-slate-900 px-3 py-2.5 rounded-xl transition border border-slate-200 font-bold shadow-sm"
+              title="Mở giao diện biểu quyết đại biểu trong tab mới"
+            >
+              <Tablet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Giao Diện ĐB</span>
+            </a>
+
             <button
               onClick={handleSimulateVotes}
               disabled={isSimulating || !currentAgenda}
@@ -176,7 +242,7 @@ export default function AdminDashboard({ state }) {
               className="flex items-center gap-1 text-xs text-slate-600 hover:text-red-700 bg-slate-100 hover:bg-slate-200 px-3 py-2.5 rounded-xl transition border border-slate-200 font-medium"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Dữ liệu mẫu</span>
+              <span>Reset Mẫu</span>
             </button>
           </div>
         </header>
@@ -895,6 +961,96 @@ export default function AdminDashboard({ state }) {
                   <p className="font-bold">Hồ Văn Long</p>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL SỬA TÊN CUỘC HỌP & TỔNG SỐ ĐẠI BIỂU TRIỆU TẬP */}
+        {showEditSessionModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in fade-in">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-red-700" />
+                  <span>Sửa Thông Tin Kỳ Họp & Số Lượng ĐB</span>
+                </h3>
+                <button
+                  onClick={() => setShowEditSessionModal(false)}
+                  className="text-slate-400 hover:text-slate-600 font-bold p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSession} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tên kỳ họp / Cuộc họp (*):
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={sessionForm.name}
+                    onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
+                    placeholder="VD: Kỳ họp thứ 8 (Kỳ họp thường lệ) - HĐND xã Phước Trà..."
+                    className="w-full text-sm p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tổng số đại biểu triệu tập theo luật (*):
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={sessionForm.total_delegates}
+                    onChange={(e) => setSessionForm({ ...sessionForm, total_delegates: e.target.value })}
+                    className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600 font-bold font-mono"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    * Số này là cơ sở pháp lý tính tỷ lệ quá bán (&gt; 50%) để thông qua các Nghị quyết.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Địa điểm tổ chức:</label>
+                    <input
+                      type="text"
+                      value={sessionForm.location}
+                      onChange={(e) => setSessionForm({ ...sessionForm, location: e.target.value })}
+                      className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Ngày tổ chức:</label>
+                    <input
+                      type="text"
+                      value={sessionForm.date}
+                      onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
+                      className="w-full text-sm p-2.5 border border-slate-300 rounded-xl outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditSessionModal(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-bold rounded-xl transition shadow"
+                  >
+                    Lưu Thay Đổi
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
