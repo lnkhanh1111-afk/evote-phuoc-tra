@@ -328,13 +328,46 @@ class Database {
   static calculateResults(agendaId, sessionId) {
     const db = readDb();
     const session = db.sessions.find(s => s.id === sessionId) || this.getActiveSession();
-    const agenda = db.agendas.find(a => a.id === agendaId);
+    const agenda = agendaId ? db.agendas.find(a => a.id === agendaId) : null;
     const delegates = db.delegates.filter(d => d.session_id === (session ? session.id : null));
-    const votes = db.votes.filter(v => v.agenda_id === agendaId);
+    const votes = agendaId ? db.votes.filter(v => v.agenda_id === agendaId) : [];
 
-    const totalDelegates = session ? session.total_delegates : delegates.length;
+    const totalDelegates = session ? Math.max(session.total_delegates || 0, delegates.length) : delegates.length;
     const presentDelegates = delegates.filter(d => d.is_present).length;
-    
+    const absentDelegates = Math.max(0, totalDelegates - presentDelegates);
+
+    if (!agenda) {
+      return {
+        agenda: null,
+        session_name: session ? session.name : "",
+        total_delegates: totalDelegates,
+        present_delegates: presentDelegates,
+        absent_delegates: absentDelegates,
+        total_voted: 0,
+        not_voted_count: presentDelegates,
+        agree_count: 0,
+        agree_percent_present: "0.0",
+        agree_percent_total: "0.0",
+        disagree_count: 0,
+        disagree_percent_present: "0.0",
+        neutral_count: 0,
+        neutral_percent_present: "0.0",
+        is_passed: false,
+        required_ratio: 0.5,
+        delegate_status_list: delegates.map(d => ({
+          id: d.id,
+          seat_number: d.seat_number,
+          name: d.name,
+          group_name: d.group_name,
+          is_present: d.is_present,
+          is_online: d.is_online,
+          has_voted: false,
+          choice: null,
+          voted_at: null
+        }))
+      };
+    }
+
     let agreeCount = 0;
     let disagreeCount = 0;
     let neutralCount = 0;

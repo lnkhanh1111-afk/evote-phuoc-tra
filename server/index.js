@@ -34,16 +34,28 @@ function broadcastFullState() {
   const activeSession = Database.getActiveSession();
   if (!activeSession) return;
 
-  const currentAgenda = activeSession.active_agenda_id
-    ? Database.getAgendaById(activeSession.active_agenda_id)
-    : null;
+  const agendas = Database.getAgendas(activeSession.id) || [];
+  const delegates = Database.getDelegates(activeSession.id) || [];
 
-  const results = currentAgenda
-    ? Database.calculateResults(currentAgenda.id, activeSession.id)
-    : null;
+  // Xử lý an toàn khi Danh mục Chỉ tiêu trống hoặc chỉ tiêu đã chọn bị xóa
+  let currentAgenda = null;
+  if (agendas.length > 0) {
+    if (activeSession.active_agenda_id) {
+      currentAgenda = Database.getAgendaById(activeSession.active_agenda_id);
+    }
+    if (!currentAgenda) {
+      currentAgenda = agendas[0];
+      Database.updateSessionState(activeSession.id, { active_agenda_id: currentAgenda.id });
+    }
+  } else {
+    // Trường hợp không có chỉ tiêu nào trong danh mục
+    if (activeSession.active_agenda_id) {
+      Database.updateSessionState(activeSession.id, { active_agenda_id: null, voting_status: 'idle' });
+    }
+  }
 
-  const agendas = Database.getAgendas(activeSession.id);
-  const delegates = Database.getDelegates(activeSession.id);
+  // Luôn tính toán kết quả & số lượng đại biểu có mặt/vắng mặt chính xác
+  const results = Database.calculateResults(currentAgenda ? currentAgenda.id : null, activeSession.id);
 
   // Tổng hợp kết quả xuyên suốt tất cả các chỉ tiêu
   const allResults = agendas.map(agenda => {
@@ -262,10 +274,11 @@ io.on('connection', (socket) => {
     if (delegate) {
       Database.updateDelegate(delegateId, {
         is_online: true,
+        is_present: true, // Khi đại biểu cầm máy tính bảng đăng nhập, tự động ghi nhận CÓ MẶT
         socket_id: socket.id
       });
       socket.delegateId = delegateId;
-      console.log(`[Tablet] Đại biểu ${delegate.name} (${delegate.seat_number}) đã online.`);
+      console.log(`[Tablet] Đại biểu ${delegate.name} (${delegate.seat_number}) đã online & điểm danh có mặt.`);
       broadcastFullState();
     }
   });
@@ -276,6 +289,9 @@ io.on('connection', (socket) => {
     if (!session || session.voting_status !== 'voting' || session.active_agenda_id !== agendaId) {
       return socket.emit('vote_error', { message: 'Biểu quyết chưa mở hoặc đã kết thúc!' });
     }
+
+    // Đảm bảo đại biểu đang bỏ phiếu được xác nhận có mặt
+    Database.updateDelegate(delegateId, { is_present: true });
 
     const vote = Database.castVote(agendaId, delegateId, choice);
     socket.emit('vote_success', { vote });

@@ -198,7 +198,9 @@ export default function AdminDashboard({ state }) {
     }
   };
 
+  const totalDelegatesCount = session?.total_delegates || (delegates.length > 0 ? delegates.length : 25);
   const presentCount = delegates.filter(d => d.is_present).length;
+  const absentCount = Math.max(0, totalDelegatesCount - presentCount);
   const onlineCount = delegates.filter(d => d.is_online).length;
 
   return (
@@ -229,7 +231,7 @@ export default function AdminDashboard({ state }) {
             </div>
 
             <p className="text-xs text-slate-500 mt-1">
-              Tổng số ĐB triệu tập: <b className="text-slate-800 text-sm">{session?.total_delegates || 25}</b> | Có mặt: <b className="text-emerald-700 text-sm">{presentCount}</b> | Vắng mặt: <b className="text-rose-700 text-sm">{delegates.length - presentCount}</b> | Tablet Online: <b className="text-blue-700 text-sm">{onlineCount}</b>
+              Tổng số ĐB triệu tập: <b className="text-slate-800 text-sm font-mono">{totalDelegatesCount} ĐB</b> | Có mặt: <b className="text-emerald-700 text-sm font-mono">{presentCount} ĐB</b> | Vắng mặt: <b className="text-rose-700 text-sm font-mono">{absentCount} ĐB</b> | Tablet Online: <b className="text-blue-700 text-sm font-mono">{onlineCount}</b>
             </p>
           </div>
 
@@ -398,17 +400,23 @@ export default function AdminDashboard({ state }) {
                     <span>Chỉ tiêu đang chọn:</span>
                   </h2>
 
-                  <select
-                    value={currentAgenda?.id || ''}
-                    onChange={(e) => handleSelectAgenda(e.target.value)}
-                    className="text-sm font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-red-600 max-w-xs truncate"
-                  >
-                    {agendas.map((ag) => (
-                      <option key={ag.id} value={ag.id}>
-                        {ag.code} - {ag.title}
-                      </option>
-                    ))}
-                  </select>
+                  {agendas.length > 0 ? (
+                    <select
+                      value={currentAgenda?.id || ''}
+                      onChange={(e) => handleSelectAgenda(e.target.value)}
+                      className="text-sm font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-red-600 max-w-xs truncate"
+                    >
+                      {agendas.map((ag) => (
+                        <option key={ag.id} value={ag.id}>
+                          {ag.code} - {ag.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-rose-600 font-bold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                      Chưa có chỉ tiêu nào
+                    </span>
+                  )}
                 </div>
 
                 {currentAgenda ? (
@@ -526,7 +534,27 @@ export default function AdminDashboard({ state }) {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500 py-6 text-center">Vui lòng chọn 1 chỉ tiêu biểu quyết</p>
+                  <div className="py-10 text-center space-y-3 bg-slate-50/60 rounded-2xl border border-dashed border-slate-300 p-6 my-2">
+                    <FileText className="w-12 h-12 text-slate-300 mx-auto" />
+                    <h3 className="text-base font-bold text-slate-800">
+                      {agendas.length === 0 ? "Chưa có Chỉ Tiêu / Dự Thảo Nghị Quyết nào" : "Chưa chọn chỉ tiêu biểu quyết"}
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      {agendas.length === 0
+                        ? "Hiện tại kỳ họp chưa có nội dung biểu quyết nào. Nhấn nút bên dưới để thêm dự thảo Nghị quyết đầu tiên."
+                        : "Vui lòng chọn 1 chỉ tiêu từ danh sách phía trên để mở phiên biểu quyết cho đại biểu."}
+                    </p>
+                    {agendas.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddAgendaModal(true)}
+                        className="inline-flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>Thêm Chỉ Tiêu Biểu Quyết Đầu Tiên</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -829,45 +857,63 @@ export default function AdminDashboard({ state }) {
               </button>
             </div>
 
-            <div className="divide-y divide-slate-100">
-              {agendas.map((ag, index) => (
-                <div key={ag.id} className="py-4 flex items-center justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="w-8 h-8 rounded-lg bg-red-100 text-red-700 font-black text-sm flex items-center justify-center shrink-0">
-                      0{index + 1}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">
-                          {ag.code}
-                        </span>
-                        <span className="text-xs text-slate-400 font-medium">
-                          Thời gian: {ag.default_duration}s • Yêu cầu: &gt; {ag.required_ratio * 100}%
-                        </span>
+            {agendas.length === 0 ? (
+              <div className="py-12 text-center space-y-3 bg-slate-50/70 rounded-2xl border border-dashed border-slate-300 p-8 my-3">
+                <FileText className="w-12 h-12 text-slate-300 mx-auto" />
+                <h3 className="text-base font-bold text-slate-800">Danh mục chỉ tiêu đang trống</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Chưa có dự thảo Nghị quyết nào được tạo. Hãy nhấn nút bên dưới để thêm nội dung biểu quyết cho kỳ họp.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddAgendaModal(true)}
+                  className="inline-flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Thêm Chỉ Tiêu Đầu Tiên</span>
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {agendas.map((ag, index) => (
+                  <div key={ag.id} className="py-4 flex items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <span className="w-8 h-8 rounded-lg bg-red-100 text-red-700 font-black text-sm flex items-center justify-center shrink-0">
+                        0{index + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded">
+                            {ag.code}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium">
+                            Thời gian: {ag.default_duration}s • Yêu cầu: &gt; {ag.required_ratio * 100}%
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-slate-900 text-sm mt-1">{ag.title}</h4>
+                        {ag.description && <p className="text-xs text-slate-500 mt-0.5">{ag.description}</p>}
                       </div>
-                      <h4 className="font-bold text-slate-900 text-sm mt-1">{ag.title}</h4>
-                      {ag.description && <p className="text-xs text-slate-500 mt-0.5">{ag.description}</p>}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleSelectAgenda(ag.id)}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+                      >
+                        Chọn
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAgenda(ag.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                        title="Xóa chỉ tiêu"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleSelectAgenda(ag.id)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
-                    >
-                      Chọn
-                    </button>
-                    <button
-                      onClick={() => handleDeleteAgenda(ag.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition"
-                      title="Xóa chỉ tiêu"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Modal Thêm Chỉ Tiêu */}
             {showAddAgendaModal && (

@@ -31,9 +31,13 @@ export default function ScreenDisplay({ state }) {
     }
   };
 
-  const totalDelegates = results?.total_delegates || session?.total_delegates || 25;
-  const presentDelegates = results?.present_delegates || 25;
-  const absentDelegates = results?.absent_delegates || 0;
+  const delegates = state.delegates || [];
+  const presentCount = delegates.filter(d => d.is_present).length;
+  const totalDelegates = session?.total_delegates || (delegates.length > 0 ? delegates.length : 25);
+  // Số đại biểu có mặt: tính trực tiếp từ danh sách đại biểu
+  const presentDelegates = delegates.length > 0 ? presentCount : (results?.present_delegates ?? totalDelegates);
+  // Số đại biểu vắng mặt: Bằng Tổng triệu tập - Có mặt (đúng luật tổ chức HĐND)
+  const absentDelegates = Math.max(0, totalDelegates - presentDelegates);
   const totalVoted = results?.total_voted || 0;
   const voteProgressPercent = presentDelegates > 0 ? Math.round((totalVoted / presentDelegates) * 100) : 0;
 
@@ -251,17 +255,28 @@ export default function ScreenDisplay({ state }) {
             </div>
           </div>
         ) : (
-          <div className="text-center py-16">
-            <h2 className="text-2xl font-bold text-slate-400">CHỜ BẮT ĐẦU PHIÊN BIỂU QUYẾT MỚI</h2>
+          <div className="max-w-2xl mx-auto text-center py-16 px-6 bg-slate-800/60 border border-slate-700/80 rounded-3xl shadow-xl">
+            <div className="w-20 h-20 bg-red-950/80 border-2 border-yellow-400/60 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-400 text-3xl shadow">
+              ★
+            </div>
+            <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-wide">
+              {allResults.length === 0 ? "CHƯA CÓ CHỈ TIÊU BIỂU QUYẾT NÀO" : "CHỜ CHỦ TỌA PHÁT LỆNH BIỂU QUYẾT"}
+            </h2>
+            <p className="text-sm text-slate-300 mt-2 max-w-md mx-auto leading-relaxed">
+              {allResults.length === 0 
+                ? "Kỳ họp hiện chưa có danh mục chỉ tiêu biểu quyết. Thư ký kỳ họp vui lòng thêm các nội dung dự thảo Nghị quyết trong trang Quản trị."
+                : "Hội đồng nhân dân đang thảo luận. Khi Chủ tọa phát lệnh biểu quyết, nội dung và đồng hồ đếm ngược sẽ tự động xuất hiện trên màn hình này."}
+            </p>
           </div>
         )}
       </main>
 
       {/* 3. BẢNG TỔNG HỢP XUYÊN SUỐT CÁC CHỈ TIÊU ĐÃ BIỂU QUYẾT TRONG KỲ HỌP */}
-      <footer className="border-t border-slate-800 pt-4 mt-auto">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2 flex items-center gap-2">
-          <span>DANH SÁCH XUYÊN SUỐT CÁC CHỈ TIÊU BIỂU QUYẾT TRONG KỲ HỌP:</span>
-        </h3>
+      {allResults.length > 0 && (
+        <footer className="border-t border-slate-800 pt-4 mt-auto">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-yellow-400 mb-2 flex items-center gap-2">
+            <span>DANH SÁCH XUYÊN SUỐT CÁC CHỈ TIÊU BIỂU QUYẾT TRONG KỲ HỌP:</span>
+          </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           {allResults.map((item, index) => {
@@ -312,6 +327,7 @@ export default function ScreenDisplay({ state }) {
           })}
         </div>
       </footer>
+      )}
     </div>
   );
 }

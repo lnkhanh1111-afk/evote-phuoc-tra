@@ -237,8 +237,12 @@ export default function TabletVote({ state }) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-slate-900 text-base md:text-lg">{currentDelegate.name}</span>
-                <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                  Có mặt
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                  currentDelegate.is_present
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : 'bg-rose-100 text-rose-800 border-rose-300'
+                }`}>
+                  {currentDelegate.is_present ? '✓ Có mặt' : '✗ Vắng mặt'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium">
@@ -339,8 +343,16 @@ export default function TabletVote({ state }) {
         ) : (
           <div className="bg-white rounded-2xl p-8 text-center shadow-md border border-slate-200 mb-6">
             <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-slate-700">Chờ chỉ tiêu biểu quyết</h3>
-            <p className="text-sm text-slate-500 mt-1">Chủ tọa chưa kích hoạt nội dung biểu quyết nào.</p>
+            <h3 className="text-lg font-bold text-slate-700">
+              {(!state.agendas || state.agendas.length === 0)
+                ? "Chưa có chỉ tiêu biểu quyết nào"
+                : "Chờ phiên biểu quyết tiếp theo"}
+            </h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+              {(!state.agendas || state.agendas.length === 0)
+                ? "Kỳ họp hiện chưa có danh mục biểu quyết. Quý đại biểu vui lòng chờ Thư ký cập nhật nội dung."
+                : "Chủ tọa chưa mở biểu quyết. Khi có hiệu lệnh, các nút bấm sẽ tự động xuất hiện trên màn hình."}
+            </p>
           </div>
         )}
 
