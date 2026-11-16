@@ -221,16 +221,53 @@ async function initMysql() {
   try {
     const mysql = require('mysql2/promise');
     console.log('[Database] Đang kết nối tới TiDB Cloud Serverless (MySQL)...');
+
+    // Phân tích cú pháp URL để trích xuất host, port, user, password và database
+    let host = 'localhost';
+    let port = 4000;
+    let user = 'root';
+    let password = '';
+    let database = 'test'; // Mặc định database của TiDB Cloud luôn là 'test'
+
+    try {
+      const cleanUri = uri.replace(/^mysql:\/\//i, 'http://');
+      const parsedUrl = new URL(cleanUri);
+      host = parsedUrl.hostname || host;
+      port = parseInt(parsedUrl.port, 10) || port;
+      user = decodeURIComponent(parsedUrl.username || user);
+      password = decodeURIComponent(parsedUrl.password || password);
+      const pathDb = parsedUrl.pathname.replace(/^\//, '').trim();
+      if (pathDb) {
+        database = pathDb;
+      }
+    } catch (e) {
+      const match = uri.match(/\/([a-zA-Z0-9_\-]+)(\?|$)/);
+      if (match && match[1]) {
+        database = match[1];
+      }
+    }
+
+    console.log(`[Database] Thông số TiDB: Host=${host}, Port=${port}, User=${user}, Database=${database}`);
+
     mysqlPool = mysql.createPool({
-      uri,
-      ssl: { rejectUnauthorized: true },
+      host,
+      port,
+      user,
+      password,
+      database,
+      ssl: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
       waitForConnections: true,
       connectionLimit: 10,
-      queueLimit: 0
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
     });
 
+    // Luôn chọn đúng database được cấp quyền trước khi thao tác
+    await mysqlPool.query(`USE \`${database}\`;`);
+
     await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS meeting_state (
+      CREATE TABLE IF NOT EXISTS \`${database}\`.\`meeting_state\` (
         id VARCHAR(50) PRIMARY KEY,
         data LONGTEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -238,16 +275,16 @@ async function initMysql() {
     `);
 
     isMysqlConnected = true;
-    console.log('✓ KẾT NỐI TIDB CLOUD SERVERLESS THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.');
+    console.log(`✓ KẾT NỐI TIDB CLOUD SERVERLESS (${database}) THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.`);
 
-    const [rows] = await mysqlPool.query(`SELECT data FROM meeting_state WHERE id = 'current_meeting_state' LIMIT 1;`);
+    const [rows] = await mysqlPool.query(`SELECT data FROM \`${database}\`.\`meeting_state\` WHERE id = 'current_meeting_state' LIMIT 1;`);
     if (rows && rows.length > 0 && rows[0].data) {
       memoryDb = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
       saveDbImmediate(memoryDb);
       console.log('✓ Đã đồng bộ dữ liệu phiên họp từ TiDB Cloud vào RAM.');
     } else {
       await mysqlPool.query(
-        `INSERT INTO meeting_state (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
+        `INSERT INTO \`${database}\`.\`meeting_state\` (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
          ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();`,
         [JSON.stringify(memoryDb || readDb())]
       );
