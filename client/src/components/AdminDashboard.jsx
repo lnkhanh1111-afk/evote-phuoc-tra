@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { socket, API_URL } from '../socket';
 import {
   Play, Square, Plus, RotateCcw, Eye, Sparkles, Users, CheckCircle,
-  XCircle, Clock, FileText, Check, Settings, Shield, PlusCircle, Trash2, Edit3, Printer, Tv, Tablet
+  XCircle, Clock, FileText, Check, Settings, Shield, PlusCircle, Trash2, Edit3, Printer, Tv, Tablet,
+  Download, Upload
 } from 'lucide-react';
 import NationalEmblem from './NationalEmblem';
 import NationalFlag from './NationalFlag';
@@ -35,6 +36,7 @@ export default function AdminDashboard({ state }) {
   // Form sửa thông tin kỳ họp / cuộc họp
   const [showEditSessionModal, setShowEditSessionModal] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const fileInputRef = useRef(null);
   const [sessionForm, setSessionForm] = useState({
     name: '',
     total_delegates: 25,
@@ -155,6 +157,40 @@ export default function AdminDashboard({ state }) {
     }
   };
 
+  // Sao lưu toàn bộ dữ liệu ra file JSON tải về máy
+  const handleBackup = () => {
+    window.open(`${API_URL}/api/backup`, '_blank');
+  };
+
+  // Nạp dữ liệu từ file sao lưu JSON
+  const handleRestoreFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const jsonData = JSON.parse(event.target.result);
+        if (window.confirm(`Xác nhận nạp file "${file.name}" để khôi phục toàn bộ dữ liệu kỳ họp?`)) {
+          const res = await fetch(`${API_URL}/api/restore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(jsonData)
+          });
+          const result = await res.json();
+          if (res.ok) {
+            setSaveSuccessMsg('Khôi phục dữ liệu kỳ họp từ file sao lưu thành công!');
+          } else {
+            alert(result.error || 'Lỗi khôi phục');
+          }
+        }
+      } catch (err) {
+        alert('File không hợp lệ: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   // Toggle điểm danh đại biểu
   const handleTogglePresent = async (delId) => {
     await fetch(`${API_URL}/api/delegates/${delId}/toggle-present`, { method: 'POST' });
@@ -273,6 +309,33 @@ export default function AdminDashboard({ state }) {
             >
               <Sparkles className="w-4 h-4 text-yellow-300" />
               <span>{isSimulating ? 'Đang giả lập...' : 'Giả Lập Biểu Quyết (Test)'}</span>
+            </button>
+
+            {/* Input file ẩn phục vụ khôi phục JSON */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".json"
+              onChange={handleRestoreFile}
+              className="hidden"
+            />
+
+            <button
+              onClick={handleBackup}
+              title="Tải về file sao lưu (.json) toàn bộ dữ liệu cuộc họp, chỉ tiêu và phiếu bầu"
+              className="flex items-center gap-1.5 text-xs text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-600 px-3 py-2.5 rounded-xl transition border border-blue-200 font-bold shadow-sm"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Sao Lưu JSON</span>
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Nạp file (.json) đã sao lưu để khôi phục lại dữ liệu kỳ họp khi cần"
+              className="flex items-center gap-1.5 text-xs text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 px-3 py-2.5 rounded-xl transition border border-emerald-200 font-bold shadow-sm"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Khôi Phục JSON</span>
             </button>
 
             <button

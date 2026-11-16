@@ -208,6 +208,27 @@ app.post('/api/reset-all', (req, res) => {
   res.json({ success: true, message: 'Đã khôi phục dữ liệu ban đầu!' });
 });
 
+// Tải về bản sao lưu dữ liệu toàn diện (Backup JSON)
+app.get('/api/backup', (req, res) => {
+  const data = Database.getFullData();
+  const filename = `evote-phuoc-tra-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify(data, null, 2));
+});
+
+// Phục hồi dữ liệu từ file sao lưu (Restore JSON)
+app.post('/api/restore', (req, res) => {
+  try {
+    const backupData = req.body;
+    Database.restoreFullData(backupData);
+    broadcastFullState();
+    res.json({ success: true, message: 'Đã khôi phục dữ liệu thành công!' });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Lỗi khôi phục dữ liệu' });
+  }
+});
+
 // SIMULATOR: Giả lập toàn bộ đại biểu có mặt bỏ phiếu tự động để test
 app.post('/api/simulator/auto-vote', (req, res) => {
   const session = Database.getActiveSession();

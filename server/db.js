@@ -465,6 +465,21 @@ class Database {
     saveDbImmediate(memoryDb);
     return true;
   }
+
+  // Xuất toàn bộ dữ liệu hiện tại để sao lưu
+  static getFullData() {
+    return readDb();
+  }
+
+  // Khôi phục toàn bộ dữ liệu từ bản sao lưu
+  static restoreFullData(backupData) {
+    if (!backupData || !Array.isArray(backupData.sessions) || !Array.isArray(backupData.delegates) || !Array.isArray(backupData.agendas)) {
+      throw new Error("Dữ liệu sao lưu không đúng cấu trúc!");
+    }
+    memoryDb = JSON.parse(JSON.stringify(backupData));
+    saveDbImmediate(memoryDb);
+    return true;
+  }
 }
 
 // Khởi tạo DB nếu chưa có

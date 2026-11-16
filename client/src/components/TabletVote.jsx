@@ -7,6 +7,13 @@ import { sounds } from '../utils/sound';
 
 export default function TabletVote({ state }) {
   const [selectedDelegateId, setSelectedDelegateId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlId = params.get('id') || params.get('db');
+      if (urlId) return urlId;
+      const hashMatch = window.location.hash.match(/db-\d+/i);
+      if (hashMatch) return hashMatch[0].toLowerCase();
+    }
     return localStorage.getItem('evote_delegate_id') || '';
   });
   const [myVote, setMyVote] = useState(null);
@@ -17,6 +24,27 @@ export default function TabletVote({ state }) {
   const [hasNotifiedVoting, setHasNotifiedVoting] = useState(false);
 
   const delegates = state.delegates || [];
+
+  // Tự động gán đại biểu theo máy tính bảng cố định qua URL (Ví dụ: ?seat=1 hoặc #seat=ĐB-01)
+  useEffect(() => {
+    if (!selectedDelegateId && delegates.length > 0 && typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      let seatParam = searchParams.get('seat');
+      if (!seatParam) {
+        const hashMatch = window.location.hash.match(/seat=(\d+|[^\&]+)/i);
+        if (hashMatch) seatParam = hashMatch[1];
+      }
+      if (seatParam) {
+        const cleanNum = seatParam.replace(/\D/g, '');
+        const targetSeat = cleanNum ? `ĐB-${cleanNum.padStart(2, '0')}` : seatParam.toUpperCase();
+        const matched = delegates.find(d => d.seat_number.toUpperCase() === targetSeat.toUpperCase() || d.seat_number === seatParam);
+        if (matched) {
+          loginAs(matched.id);
+        }
+      }
+    }
+  }, [delegates, selectedDelegateId]);
+
   const currentDelegate = delegates.find(d => d.id === selectedDelegateId);
   const currentAgenda = state.currentAgenda;
   const votingStatus = state.voting_status; // 'idle' | 'voting' | 'locked' | 'published'
