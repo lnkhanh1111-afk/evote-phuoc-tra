@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { socket } from './socket';
+import { socket, API_URL } from './socket';
 import TabletVote from './components/TabletVote';
 import ScreenDisplay from './components/ScreenDisplay';
 import AdminDashboard from './components/AdminDashboard';
@@ -45,6 +45,25 @@ export default function App() {
     window.addEventListener('hashchange', handleUrlChange);
     window.addEventListener('popstate', handleUrlChange);
 
+    // Tải trước dữ liệu ngay lập tức qua REST API (không cần chờ Socket bắt tay)
+    const fetchFullState = () => {
+      fetch(`${API_URL}/api/full-state`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.session) {
+            setAppState(prev => ({
+              ...prev,
+              ...data
+            }));
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchFullState();
+    // Tự động đồng bộ dự phòng mỗi 10 giây
+    const pollInterval = setInterval(fetchFullState, 10000);
+
     // Lắng nghe cập nhật toàn bộ trạng thái thời gian thực từ Socket.io
     function onStateUpdate(data) {
       setAppState(prev => ({
@@ -67,6 +86,7 @@ export default function App() {
     return () => {
       window.removeEventListener('hashchange', handleUrlChange);
       window.removeEventListener('popstate', handleUrlChange);
+      clearInterval(pollInterval);
       socket.off('state_update', onStateUpdate);
       socket.off('timer_tick', onTimerTick);
     };

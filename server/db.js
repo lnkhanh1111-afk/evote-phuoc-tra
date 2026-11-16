@@ -554,6 +554,14 @@ class Database {
     const db = readDb();
     db.agendas = db.agendas.filter(a => a.id !== id);
     db.votes = db.votes.filter(v => v.agenda_id !== id);
+    // Nếu kỳ họp đang chọn chỉ tiêu này thì chuyển sang chỉ tiêu kế tiếp hoặc null
+    db.sessions.forEach(s => {
+      if (s.active_agenda_id === id) {
+        const remaining = db.agendas.filter(a => a.session_id === s.id);
+        s.active_agenda_id = remaining.length > 0 ? remaining[0].id : null;
+        s.voting_status = 'idle';
+      }
+    });
     writeDb(db);
     return true;
   }

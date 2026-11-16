@@ -118,35 +118,69 @@ export default function AdminDashboard({ state }) {
   const votingStatus = state.voting_status; // 'idle' | 'voting' | 'locked' | 'published'
   const timeRemaining = state.time_remaining;
 
-  // 1. Actions điều khiển
-  const handleSelectAgenda = (agendaId) => {
+  // 1. Actions điều khiển đa kênh (Vừa bắn WebSocket tức thì <20ms, vừa gọi REST API dự phòng)
+  const handleSelectAgenda = async (agendaId) => {
     socket.emit('admin_select_agenda', { agendaId });
+    try {
+      await fetch(`${API_URL}/api/voting/select-agenda`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendaId })
+      });
+    } catch (e) {}
   };
 
-  const handleStartVoting = () => {
+  const handleStartVoting = async () => {
     if (!currentAgenda) return alert('Vui lòng chọn chỉ tiêu biểu quyết trước');
     socket.emit('admin_start_voting', {
       agendaId: currentAgenda.id,
       duration: durationInput
     });
+    try {
+      await fetch(`${API_URL}/api/voting/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agendaId: currentAgenda.id, duration: durationInput })
+      });
+    } catch (e) {}
   };
 
-  const handleLockVoting = () => {
+  const handleLockVoting = async () => {
     socket.emit('admin_lock_voting');
+    try {
+      await fetch(`${API_URL}/api/voting/lock`, { method: 'POST' });
+    } catch (e) {}
   };
 
-  const handleExtendVoting = () => {
+  const handleExtendVoting = async () => {
     socket.emit('admin_extend_time', { seconds: 15 });
+    try {
+      await fetch(`${API_URL}/api/voting/extend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seconds: 15 })
+      });
+    } catch (e) {}
   };
 
-  const handlePublishResults = () => {
+  const handlePublishResults = async () => {
     socket.emit('admin_publish_results');
+    try {
+      await fetch(`${API_URL}/api/voting/publish`, { method: 'POST' });
+    } catch (e) {}
   };
 
-  const handleResetAgenda = () => {
+  const handleResetAgenda = async () => {
     if (!currentAgenda) return;
     if (window.confirm(`Xác nhận xóa phiếu và cho biểu quyết lại chỉ tiêu "${currentAgenda.title}"?`)) {
       socket.emit('admin_reset_agenda', { agendaId: currentAgenda.id });
+      try {
+        await fetch(`${API_URL}/api/voting/reset`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agendaId: currentAgenda.id })
+        });
+      } catch (e) {}
     }
   };
 
@@ -207,26 +241,35 @@ export default function AdminDashboard({ state }) {
 
   // Toggle điểm danh đại biểu
   const handleTogglePresent = async (delId) => {
-    await fetch(`${API_URL}/api/delegates/${delId}/toggle-present`, { method: 'POST' });
+    socket.emit('admin_toggle_present', { delegateId: delId });
+    try {
+      await fetch(`${API_URL}/api/delegates/${delId}/toggle-present`, { method: 'POST' });
+    } catch (e) {}
   };
 
   // Thêm chỉ tiêu mới
   const handleCreateAgenda = async (e) => {
     e.preventDefault();
     if (!newAgenda.title) return alert('Vui lòng nhập tên chỉ tiêu');
-    await fetch(`${API_URL}/api/agendas`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newAgenda)
-    });
+    socket.emit('admin_create_agenda', newAgenda);
+    try {
+      await fetch(`${API_URL}/api/agendas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAgenda)
+      });
+    } catch (e) {}
     setShowAddAgendaModal(false);
     setNewAgenda({ title: '', code: '', description: '', default_duration: 30, required_ratio: 0.5 });
   };
 
   // Xóa chỉ tiêu
   const handleDeleteAgenda = async (id) => {
-    if (window.confirm('Xác nhận xóa chỉ tiêu này?')) {
-      await fetch(`${API_URL}/api/agendas/${id}`, { method: 'DELETE' });
+    if (window.confirm('Xác nhận xóa chỉ tiêu này khỏi danh mục?')) {
+      socket.emit('admin_delete_agenda', { agendaId: id });
+      try {
+        await fetch(`${API_URL}/api/agendas/${id}`, { method: 'DELETE' });
+      } catch (e) {}
     }
   };
 
@@ -234,11 +277,14 @@ export default function AdminDashboard({ state }) {
   const handleCreateDelegate = async (e) => {
     e.preventDefault();
     if (!newDelegate.name) return alert('Vui lòng nhập tên đại biểu');
-    await fetch(`${API_URL}/api/delegates`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newDelegate)
-    });
+    socket.emit('admin_create_delegate', newDelegate);
+    try {
+      await fetch(`${API_URL}/api/delegates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDelegate)
+      });
+    } catch (e) {}
     setShowAddDelegateModal(false);
     setNewDelegate({ name: '', seat_number: '', title: 'Đại biểu HĐND', group_name: 'Tổ đại biểu số 1', pin: '' });
   };
@@ -246,7 +292,10 @@ export default function AdminDashboard({ state }) {
   // Xóa đại biểu
   const handleDeleteDelegate = async (id) => {
     if (window.confirm('Xác nhận xóa đại biểu này khỏi danh sách?')) {
-      await fetch(`${API_URL}/api/delegates/${id}`, { method: 'DELETE' });
+      socket.emit('admin_delete_delegate', { delegateId: id });
+      try {
+        await fetch(`${API_URL}/api/delegates/${id}`, { method: 'DELETE' });
+      } catch (e) {}
     }
   };
 

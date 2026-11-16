@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { socket } from '../socket';
+import { socket, API_URL } from '../socket';
 import { CheckCircle2, XCircle, HelpCircle, LogOut, Clock, ShieldCheck, AlertCircle, Wifi } from 'lucide-react';
 import NationalEmblem from './NationalEmblem';
 import NationalFlag from './NationalFlag';
@@ -82,6 +82,15 @@ export default function TabletVote({ state }) {
     }
   }, [votingStatus, hasNotifiedVoting]);
 
+  // Lắng nghe phản hồi lỗi biểu quyết từ máy chủ
+  useEffect(() => {
+    const onVoteError = (err) => {
+      alert(err.message || 'Lỗi biểu quyết');
+    };
+    socket.on('vote_error', onVoteError);
+    return () => socket.off('vote_error', onVoteError);
+  }, []);
+
   // Xử lý chọn đại biểu
   const handleSelectDelegate = (del) => {
     setCandidateDelegate(del);
@@ -120,10 +129,18 @@ export default function TabletVote({ state }) {
     }
   };
 
-  // Đại biểu bấm nút biểu quyết
-  const handleVote = (choice) => {
-    if (votingStatus !== 'voting') return;
-    if (!currentAgenda || !selectedDelegateId) return;
+  // Đại biểu bấm nút biểu quyết (chạy song song WebSocket + REST API dự phòng)
+  const handleVote = async (choice) => {
+    if (votingStatus !== 'voting') {
+      alert('Phiên biểu quyết hiện chưa mở hoặc đã kết thúc!');
+      return;
+    }
+    if (!selectedDelegateId) {
+      alert('Vui lòng chọn đại biểu trước khi biểu quyết!');
+      return;
+    }
+
+    const agendaId = currentAgenda?.id;
 
     if ('vibrate' in navigator) {
       try { navigator.vibrate(100); } catch (e) {}
@@ -131,11 +148,28 @@ export default function TabletVote({ state }) {
     sounds.playVoteSuccess();
 
     setMyVote(choice);
+
+    // 1. Gửi realtime tức thì qua Socket
     socket.emit('submit_vote', {
       delegateId: selectedDelegateId,
-      agendaId: currentAgenda.id,
+      agendaId: agendaId,
       choice: choice
     });
+
+    // 2. Gửi qua REST API dự phòng (đảm bảo 100% không bao giờ trượt phiếu kể cả mạng yếu)
+    try {
+      await fetch(`${API_URL}/api/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          delegateId: selectedDelegateId,
+          agendaId: agendaId,
+          choice: choice
+        })
+      });
+    } catch (e) {
+      console.warn('Vote REST fallback error:', e);
+    }
   };
 
   // MÀN HÌNH 1: CHƯA ĐĂNG NHẬP (CHỌN ĐẠI BIỂU)

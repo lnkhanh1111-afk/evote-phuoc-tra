@@ -29,10 +29,40 @@ const PORT = process.env.PORT || 5000;
 // Bộ đếm thời gian biểu quyết máy chủ
 let votingTimerInterval = null;
 
-// Phát thông tin đồng bộ toàn diện tới tất cả clients
-function broadcastFullState() {
-  const activeSession = Database.getActiveSession();
-  if (!activeSession) return;
+function startVotingTimer(sessionId, agendaId) {
+  if (votingTimerInterval) clearInterval(votingTimerInterval);
+  votingTimerInterval = setInterval(() => {
+    const currentSession = Database.getActiveSession();
+    if (!currentSession || currentSession.voting_status !== 'voting') {
+      clearInterval(votingTimerInterval);
+      return;
+    }
+
+    const remaining = currentSession.voting_time_remaining - 1;
+    if (remaining <= 0) {
+      clearInterval(votingTimerInterval);
+      Database.updateSessionState(currentSession.id, {
+        voting_status: 'locked',
+        voting_time_remaining: 0
+      });
+      if (agendaId) {
+        Database.updateAgenda(agendaId, { status: 'locked' });
+      }
+      console.log(`[Voting Timer] Hết thời gian biểu quyết! Tự động khóa.`);
+      broadcastFullState();
+    } else {
+      Database.updateSessionState(currentSession.id, {
+        voting_time_remaining: remaining
+      });
+      io.emit('timer_tick', { remaining });
+    }
+  }, 1000);
+}
+
+// Lấy toàn bộ trạng thái đồng bộ hiện tại
+function getFullState() {
+  let activeSession = Database.getActiveSession();
+  if (!activeSession) return null;
 
   const agendas = Database.getAgendas(activeSession.id) || [];
   const delegates = Database.getDelegates(activeSession.id) || [];
@@ -45,12 +75,12 @@ function broadcastFullState() {
     }
     if (!currentAgenda) {
       currentAgenda = agendas[0];
-      Database.updateSessionState(activeSession.id, { active_agenda_id: currentAgenda.id });
+      activeSession = Database.updateSessionState(activeSession.id, { active_agenda_id: currentAgenda.id }) || activeSession;
     }
   } else {
     // Trường hợp không có chỉ tiêu nào trong danh mục
     if (activeSession.active_agenda_id) {
-      Database.updateSessionState(activeSession.id, { active_agenda_id: null, voting_status: 'idle' });
+      activeSession = Database.updateSessionState(activeSession.id, { active_agenda_id: null, voting_status: 'idle' }) || activeSession;
     }
   }
 
@@ -62,7 +92,7 @@ function broadcastFullState() {
     return Database.calculateResults(agenda.id, activeSession.id);
   });
 
-  const statePayload = {
+  return {
     session: activeSession,
     currentAgenda: currentAgenda,
     results: results,
@@ -72,8 +102,14 @@ function broadcastFullState() {
     voting_status: activeSession.voting_status,
     time_remaining: activeSession.voting_time_remaining
   };
+}
 
-  io.emit('state_update', statePayload);
+// Phát thông tin đồng bộ toàn diện tới tất cả clients
+function broadcastFullState() {
+  const statePayload = getFullState();
+  if (statePayload) {
+    io.emit('state_update', statePayload);
+  }
 }
 
 // REST API ROUTES
@@ -205,6 +241,130 @@ app.get('/api/all-results', (req, res) => {
   res.json(all);
 });
 
+// Lấy toàn bộ trạng thái phiên họp đồng bộ
+app.get('/api/full-state', (req, res) => {
+  const state = getFullState();
+  res.json(state || {});
+});
+
+// REST API BỔ TRỢ ĐIỀU HÀNH BIỂU QUYẾT (CHỐNG NGHẼN HOẶC MẤT KẾT NỐI SOCKET)
+app.post('/api/voting/start', (req, res) => {
+  const { agendaId, duration } = req.body;
+  const session = Database.getActiveSession();
+  if (!session) return res.status(400).json({ error: 'Không tìm thấy phiên họp' });
+
+  const targetAgendaId = agendaId || session.active_agenda_id;
+  const votingDuration = parseInt(duration, 10) || 30;
+
+  if (targetAgendaId) {
+    Database.updateAgenda(targetAgendaId, { status: 'voting' });
+  }
+
+  Database.updateSessionState(session.id, {
+    active_agenda_id: targetAgendaId,
+    voting_status: 'voting',
+    voting_duration: votingDuration,
+    voting_time_remaining: votingDuration,
+    voting_started_at: new Date().toISOString()
+  });
+
+  startVotingTimer(session.id, targetAgendaId);
+  broadcastFullState();
+  res.json({ success: true, voting_status: 'voting' });
+});
+
+app.post('/api/voting/lock', (req, res) => {
+  if (votingTimerInterval) clearInterval(votingTimerInterval);
+  const session = Database.getActiveSession();
+  if (session) {
+    Database.updateSessionState(session.id, {
+      voting_status: 'locked',
+      voting_time_remaining: 0
+    });
+    if (session.active_agenda_id) {
+      Database.updateAgenda(session.active_agenda_id, { status: 'locked' });
+    }
+    broadcastFullState();
+  }
+  res.json({ success: true, voting_status: 'locked' });
+});
+
+app.post('/api/voting/extend', (req, res) => {
+  const { seconds = 15 } = req.body;
+  const session = Database.getActiveSession();
+  if (!session || session.voting_status !== 'voting') {
+    return res.status(400).json({ error: 'Biểu quyết chưa mở' });
+  }
+  const newTime = session.voting_time_remaining + parseInt(seconds, 10);
+  Database.updateSessionState(session.id, { voting_time_remaining: newTime });
+  io.emit('timer_tick', { remaining: newTime });
+  broadcastFullState();
+  res.json({ success: true, remaining: newTime });
+});
+
+app.post('/api/voting/publish', (req, res) => {
+  const session = Database.getActiveSession();
+  if (session) {
+    Database.updateSessionState(session.id, { voting_status: 'published' });
+    if (session.active_agenda_id) {
+      Database.updateAgenda(session.active_agenda_id, { status: 'published' });
+    }
+    broadcastFullState();
+  }
+  res.json({ success: true, voting_status: 'published' });
+});
+
+app.post('/api/voting/reset', (req, res) => {
+  if (votingTimerInterval) clearInterval(votingTimerInterval);
+  const { agendaId } = req.body;
+  const session = Database.getActiveSession();
+  if (session) {
+    const targetAgendaId = agendaId || session.active_agenda_id;
+    if (targetAgendaId) {
+      Database.resetVotesForAgenda(targetAgendaId);
+    }
+    Database.updateSessionState(session.id, {
+      voting_status: 'idle',
+      voting_time_remaining: 30
+    });
+    broadcastFullState();
+  }
+  res.json({ success: true, voting_status: 'idle' });
+});
+
+app.post('/api/voting/select-agenda', (req, res) => {
+  const { agendaId } = req.body;
+  const session = Database.getActiveSession();
+  if (session && agendaId) {
+    Database.updateSessionState(session.id, {
+      active_agenda_id: agendaId,
+      voting_status: 'idle'
+    });
+    broadcastFullState();
+  }
+  res.json({ success: true, active_agenda_id: agendaId });
+});
+
+// Đại biểu bỏ phiếu qua REST API (dự phòng song song với Socket)
+app.post('/api/vote', (req, res) => {
+  const { delegateId, agendaId, choice } = req.body;
+  const session = Database.getActiveSession();
+  if (!session || session.voting_status !== 'voting') {
+    return res.status(400).json({ error: 'Biểu quyết chưa mở hoặc đã kết thúc!' });
+  }
+
+  const targetAgendaId = agendaId || session.active_agenda_id;
+  if (!targetAgendaId) {
+    return res.status(400).json({ error: 'Không xác định được chỉ tiêu cần biểu quyết!' });
+  }
+
+  Database.updateDelegate(delegateId, { is_present: true });
+  const vote = Database.castVote(targetAgendaId, delegateId, choice);
+  console.log(`[Vote REST] Đại biểu ${delegateId} đã chọn ${choice} cho ${targetAgendaId}`);
+  broadcastFullState();
+  res.json({ success: true, vote });
+});
+
 // Reset toàn bộ dữ liệu mẫu (cho việc demo / test)
 app.post('/api/reset-all', (req, res) => {
   if (votingTimerInterval) clearInterval(votingTimerInterval);
@@ -270,28 +430,9 @@ io.on('connection', (socket) => {
   console.log(`[Socket] Kết nối mới: ${socket.id}`);
 
   // Gửi state ngay lập tức cho client vừa kết nối
-  const activeSession = Database.getActiveSession();
-  if (activeSession) {
-    const currentAgenda = activeSession.active_agenda_id
-      ? Database.getAgendaById(activeSession.active_agenda_id)
-      : null;
-    const results = currentAgenda
-      ? Database.calculateResults(currentAgenda.id, activeSession.id)
-      : null;
-    const agendas = Database.getAgendas(activeSession.id);
-    const delegates = Database.getDelegates(activeSession.id);
-    const allResults = agendas.map(a => Database.calculateResults(a.id, activeSession.id));
-
-    socket.emit('state_update', {
-      session: activeSession,
-      currentAgenda,
-      results,
-      allResults,
-      agendas,
-      delegates,
-      voting_status: activeSession.voting_status,
-      time_remaining: activeSession.voting_time_remaining
-    });
+  const statePayload = getFullState();
+  if (statePayload) {
+    socket.emit('state_update', statePayload);
   }
 
   // 1. Đại biểu đăng nhập trên Tablet
@@ -309,19 +450,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 2. Đại biểu thực hiện Biểu quyết
+  // 2. Đại biểu thực hiện Biểu quyết (linh hoạt, tự động nhận đúng chỉ tiêu hiện hành)
   socket.on('submit_vote', ({ delegateId, agendaId, choice }) => {
     const session = Database.getActiveSession();
-    if (!session || session.voting_status !== 'voting' || session.active_agenda_id !== agendaId) {
+    if (!session || session.voting_status !== 'voting') {
       return socket.emit('vote_error', { message: 'Biểu quyết chưa mở hoặc đã kết thúc!' });
+    }
+
+    const targetAgendaId = agendaId || session.active_agenda_id;
+    if (!targetAgendaId) {
+      return socket.emit('vote_error', { message: 'Chưa có chỉ tiêu nào được mở biểu quyết!' });
     }
 
     // Đảm bảo đại biểu đang bỏ phiếu được xác nhận có mặt
     Database.updateDelegate(delegateId, { is_present: true });
 
-    const vote = Database.castVote(agendaId, delegateId, choice);
+    const vote = Database.castVote(targetAgendaId, delegateId, choice);
     socket.emit('vote_success', { vote });
-    console.log(`[Vote] Đại biểu ${delegateId} đã chọn ${choice} cho nội dung ${agendaId}`);
+    console.log(`[Vote Socket] Đại biểu ${delegateId} đã chọn ${choice} cho nội dung ${targetAgendaId}`);
     
     // Cập nhật tiến độ realtime cho màn hình LED và admin
     broadcastFullState();
@@ -332,47 +478,22 @@ io.on('connection', (socket) => {
     const session = Database.getActiveSession();
     if (!session) return;
 
-    if (votingTimerInterval) clearInterval(votingTimerInterval);
-
+    const targetAgendaId = agendaId || session.active_agenda_id;
     const votingDuration = duration || 30;
-    Database.updateAgenda(agendaId, { status: 'voting' });
+    if (targetAgendaId) {
+      Database.updateAgenda(targetAgendaId, { status: 'voting' });
+    }
     Database.updateSessionState(session.id, {
-      active_agenda_id: agendaId,
+      active_agenda_id: targetAgendaId,
       voting_status: 'voting',
       voting_duration: votingDuration,
       voting_time_remaining: votingDuration,
       voting_started_at: new Date().toISOString()
     });
 
-    console.log(`[Admin] Bắt đầu biểu quyết chỉ tiêu ${agendaId} trong ${votingDuration}s`);
+    console.log(`[Admin] Bắt đầu biểu quyết chỉ tiêu ${targetAgendaId} trong ${votingDuration}s`);
+    startVotingTimer(session.id, targetAgendaId);
     broadcastFullState();
-
-    // Khởi động đếm ngược thời gian
-    votingTimerInterval = setInterval(() => {
-      const currentSession = Database.getActiveSession();
-      if (!currentSession || currentSession.voting_status !== 'voting') {
-        clearInterval(votingTimerInterval);
-        return;
-      }
-
-      const remaining = currentSession.voting_time_remaining - 1;
-      if (remaining <= 0) {
-        clearInterval(votingTimerInterval);
-        // Tự động khóa biểu quyết khi hết giờ
-        Database.updateSessionState(currentSession.id, {
-          voting_status: 'locked',
-          voting_time_remaining: 0
-        });
-        Database.updateAgenda(agendaId, { status: 'locked' });
-        console.log(`[Voting] Hết thời gian biểu quyết! Tự động khóa.`);
-        broadcastFullState();
-      } else {
-        Database.updateSessionState(currentSession.id, {
-          voting_time_remaining: remaining
-        });
-        io.emit('timer_tick', { remaining });
-      }
-    }, 1000);
   });
 
   // 4. Admin: Khóa / Dừng biểu quyết thủ công
@@ -459,6 +580,52 @@ io.on('connection', (socket) => {
     Database.updateSessionState(activeSession.id, updates);
     console.log(`[Admin Socket] Cập nhật cuộc họp: ${updates.name || activeSession.name}, Tổng ĐB: ${updates.total_delegates || activeSession.total_delegates}`);
     broadcastFullState();
+  });
+
+  // 10. Admin: Xóa chỉ tiêu qua Socket
+  socket.on('admin_delete_agenda', ({ agendaId }) => {
+    Database.deleteAgenda(agendaId);
+    console.log(`[Admin Socket] Đã xóa chỉ tiêu ${agendaId}`);
+    broadcastFullState();
+  });
+
+  // 11. Admin: Thêm chỉ tiêu qua Socket
+  socket.on('admin_create_agenda', (agendaData) => {
+    const session = Database.getActiveSession();
+    Database.createAgenda({
+      ...agendaData,
+      session_id: session ? session.id : null
+    });
+    console.log(`[Admin Socket] Đã thêm chỉ tiêu mới: ${agendaData.title}`);
+    broadcastFullState();
+  });
+
+  // 12. Admin: Xóa đại biểu qua Socket
+  socket.on('admin_delete_delegate', ({ delegateId }) => {
+    Database.deleteDelegate(delegateId);
+    console.log(`[Admin Socket] Đã xóa đại biểu ${delegateId}`);
+    broadcastFullState();
+  });
+
+  // 13. Admin: Thêm đại biểu qua Socket
+  socket.on('admin_create_delegate', (delegateData) => {
+    const session = Database.getActiveSession();
+    Database.addDelegate({
+      ...delegateData,
+      session_id: session ? session.id : null
+    });
+    console.log(`[Admin Socket] Đã thêm đại biểu mới: ${delegateData.name}`);
+    broadcastFullState();
+  });
+
+  // 14. Admin: Toggle điểm danh đại biểu qua Socket
+  socket.on('admin_toggle_present', ({ delegateId }) => {
+    const delegate = Database.getDelegateById(delegateId);
+    if (delegate) {
+      Database.updateDelegate(delegateId, { is_present: !delegate.is_present });
+      console.log(`[Admin Socket] Đổi điểm danh đại biểu ${delegate.name}: ${!delegate.is_present ? 'Có mặt' : 'Vắng mặt'}`);
+      broadcastFullState();
+    }
   });
 
   // Xử lý ngắt kết nối
