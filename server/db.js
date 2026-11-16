@@ -210,6 +210,68 @@ function syncToPgAsync(data) {
   });
 }
 
+// Tích hợp TiDB Cloud Serverless (MySQL 5GB miễn phí vĩnh viễn qua TIDB_URL hoặc DATABASE_URL bắt đầu bằng mysql)
+let mysqlPool = null;
+let isMysqlConnected = false;
+
+async function initMysql() {
+  const uri = process.env.TIDB_URL || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('mysql') ? process.env.DATABASE_URL : null);
+  if (!uri) return false;
+
+  try {
+    const mysql = require('mysql2/promise');
+    console.log('[Database] Đang kết nối tới TiDB Cloud Serverless (MySQL)...');
+    mysqlPool = mysql.createPool({
+      uri,
+      ssl: { rejectUnauthorized: true },
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
+    });
+
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS meeting_state (
+        id VARCHAR(50) PRIMARY KEY,
+        data LONGTEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      );
+    `);
+
+    isMysqlConnected = true;
+    console.log('✓ KẾT NỐI TIDB CLOUD SERVERLESS THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.');
+
+    const [rows] = await mysqlPool.query(`SELECT data FROM meeting_state WHERE id = 'current_meeting_state' LIMIT 1;`);
+    if (rows && rows.length > 0 && rows[0].data) {
+      memoryDb = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
+      saveDbImmediate(memoryDb);
+      console.log('✓ Đã đồng bộ dữ liệu phiên họp từ TiDB Cloud vào RAM.');
+    } else {
+      await mysqlPool.query(
+        `INSERT INTO meeting_state (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
+         ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();`,
+        [JSON.stringify(memoryDb || readDb())]
+      );
+      console.log('✓ Đã khởi tạo dữ liệu mẫu lên TiDB Cloud.');
+    }
+    return true;
+  } catch (err) {
+    console.error('⚠ Không thể kết nối TiDB Cloud (sử dụng database.json dự phòng):', err.message);
+    isMysqlConnected = false;
+    return false;
+  }
+}
+
+function syncToMysqlAsync(data) {
+  if (!isMysqlConnected || !mysqlPool) return;
+  mysqlPool.query(
+    `INSERT INTO meeting_state (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
+     ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();`,
+    [JSON.stringify(data)]
+  ).catch(err => {
+    console.error('Lỗi sync TiDB Cloud:', err.message);
+  });
+}
+
 // Đọc dữ liệu (ưu tiên bộ nhớ RAM siêu tốc, 0ms, không nghẽn I/O ổ đĩa)
 function readDb() {
   if (memoryDb) return memoryDb;
@@ -237,6 +299,7 @@ function saveDbImmediate(data) {
     fs.renameSync(tempFile, DB_FILE);
     syncToMongoAsync(data);
     syncToPgAsync(data);
+    syncToMysqlAsync(data);
   } catch (error) {
     console.error("Lỗi ghi cơ sở dữ liệu tức thì:", error);
   }
@@ -248,6 +311,7 @@ function writeDb(data) {
   memoryDb = data; // Cập nhật ngay lập tức trong RAM (đơn luồng Node.js không bao giờ race condition)
   syncToMongoAsync(data); // Tự động đồng bộ lên Cloud MongoDB Atlas
   syncToPgAsync(data); // Tự động đồng bộ lên Cloud PostgreSQL (Neon/Supabase)
+  syncToMysqlAsync(data); // Tự động đồng bộ lên Cloud TiDB (MySQL)
 
   if (isWriting) {
     hasPendingWrite = true;
@@ -595,10 +659,12 @@ class Database {
   // Tình trạng kết nối lưu trữ
   static getStorageStatus() {
     let storageType = 'Cục bộ (database.json)';
-    if (isPgConnected) storageType = 'Cloud PostgreSQL (Neon / Supabase - Vĩnh viễn)';
+    if (isMysqlConnected) storageType = 'Cloud TiDB Serverless (5GB Vĩnh viễn)';
+    else if (isPgConnected) storageType = 'Cloud PostgreSQL (Neon / Supabase - Vĩnh viễn)';
     else if (isMongoConnected) storageType = 'MongoDB Atlas (Cloud Vĩnh Viễn)';
     return {
-      isCloudConnected: isPgConnected || isMongoConnected,
+      isCloudConnected: isMysqlConnected || isPgConnected || isMongoConnected,
+      isMysqlConnected,
       isPgConnected,
       isMongoConnected,
       storageType
@@ -611,6 +677,10 @@ class Database {
 
   static initPg() {
     return initPg();
+  }
+
+  static initMysql() {
+    return initMysql();
   }
 }
 

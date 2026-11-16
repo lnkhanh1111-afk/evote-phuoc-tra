@@ -478,9 +478,11 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`  Chấp nhận kết nối mạng LAN từ máy tính bảng`);
   console.log(`======================================================`);
 
-  // Tự động kết nối Cloud Database (PostgreSQL Neon/Supabase hoặc MongoDB Atlas)
+  // Tự động kết nối Cloud Database (TiDB Cloud MySQL, PostgreSQL Neon/Supabase hoặc MongoDB Atlas)
   try {
-    if (process.env.DATABASE_URL) {
+    if (process.env.TIDB_URL || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('mysql'))) {
+      await Database.initMysql();
+    } else if (process.env.DATABASE_URL) {
       await Database.initPg();
     } else if (process.env.MONGODB_URI) {
       await Database.initMongo();
