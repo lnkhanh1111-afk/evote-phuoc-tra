@@ -5,15 +5,15 @@
       "name": "Kỳ họp thứ 8 (Kỳ họp thường lệ) - HĐND xã Phước Trà Khóa XII, Nhiệm kỳ 2021 - 2026",
       "session_code": "KH-08-KXII",
       "location": "Hội trường tầng 2 - UBND xã Phước Trà",
-      "date": "13/11/2026",
+      "date": "16/11/2026",
       "total_delegates": 17,
       "is_active": true,
       "active_agenda_id": "agenda-01",
-      "voting_status": "locked",
-      "voting_time_remaining": 0,
-      "voting_duration": 60,
-      "voting_started_at": "2026-11-13T09:28:42.917Z",
-      "created_at": "2026-11-13T03:53:08.770Z"
+      "voting_status": "idle",
+      "voting_time_remaining": 30,
+      "voting_duration": 30,
+      "voting_started_at": null,
+      "created_at": "2026-11-16T09:31:23.139Z"
     }
   ],
   "delegates": [
@@ -26,8 +26,7 @@
       "group_name": "Tổ 1 - Đảng ủy, HĐND, UBND, UBMT",
       "pin": "1111",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-02",
@@ -38,8 +37,7 @@
       "group_name": "Tổ 1 - Đảng ủy, HĐND, UBND, UBMT",
       "pin": "2222",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-03",
@@ -50,8 +48,7 @@
       "group_name": "Tổ 1 - Đảng ủy, HĐND, UBND, UBMT",
       "pin": "3333",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-04",
@@ -62,8 +59,7 @@
       "group_name": "Tổ 1 - Đảng ủy, HĐND, UBND, UBMT",
       "pin": "4444",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-05",
@@ -74,8 +70,7 @@
       "group_name": "Tổ 1 - Đảng ủy, HĐND, UBND, UBMT",
       "pin": "1005",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-06",
@@ -86,8 +81,7 @@
       "group_name": "Tổ 1 - Đảng ủy, HĐND, UBND, UBMT",
       "pin": "1006",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-07",
@@ -98,8 +92,7 @@
       "group_name": "Tổ 2 - Các Ban HĐND & Đoàn thể",
       "pin": "1007",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-08",
@@ -110,8 +103,7 @@
       "group_name": "Tổ 2 - Các Ban HĐND & Đoàn thể",
       "pin": "1008",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-09",
@@ -122,8 +114,7 @@
       "group_name": "Tổ 2 - Các Ban HĐND & Đoàn thể",
       "pin": "1009",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-10",
@@ -134,8 +125,7 @@
       "group_name": "Tổ 2 - Các Ban HĐND & Đoàn thể",
       "pin": "1010",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-11",
@@ -146,8 +136,7 @@
       "group_name": "Tổ 2 - Các Ban HĐND & Đoàn thể",
       "pin": "1011",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-12",
@@ -158,8 +147,7 @@
       "group_name": "Tổ 2 - Các Ban HĐND & Đoàn thể",
       "pin": "1012",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-13",
@@ -170,8 +158,7 @@
       "group_name": "Tổ 2 - Các Ban HĐND & Đoàn thể",
       "pin": "1013",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-14",
@@ -182,8 +169,7 @@
       "group_name": "Tổ 3 - Thôn Trà Sơn, Trà Nô, Hạ Sơn",
       "pin": "1014",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-15",
@@ -194,8 +180,7 @@
       "group_name": "Tổ 3 - Thôn Trà Sơn, Trà Nô, Hạ Sơn",
       "pin": "1015",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-16",
@@ -206,8 +191,7 @@
       "group_name": "Tổ 3 - Thôn Trà Sơn, Trà Nô, Hạ Sơn",
       "pin": "1016",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     },
     {
       "id": "db-17",
@@ -218,8 +202,7 @@
       "group_name": "Tổ 3 - Thôn Trà Sơn, Trà Nô, Hạ Sơn",
       "pin": "1017",
       "is_present": true,
-      "is_online": false,
-      "socket_id": null
+      "is_online": false
     }
   ],
   "agendas": [
@@ -231,7 +214,7 @@
       "title": "Thông qua Báo cáo tình hình phát triển Kinh tế - Xã hội, Quốc phòng - An ninh năm 2026 và phương hướng nhiệm vụ năm 2027",
       "description": "Biểu quyết thông qua toàn văn Báo cáo số 45/BC-UBND của UBND xã Phước Trà về kết quả đạt được và chỉ tiêu phát triển KTXH năm 2027.",
       "default_duration": 30,
-      "status": "locked",
+      "status": "pending",
       "required_ratio": 0.5
     },
     {
@@ -268,125 +251,11 @@
       "required_ratio": 0.5
     }
   ],
-  "votes": [
-    {
-      "id": "40803c41-e5ae-4ec3-b030-ffd255719819",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-04",
-      "choice": "disagree",
-      "voted_at": "2026-11-13T09:28:43.746Z"
-    },
-    {
-      "id": "626de441-7c9b-48c2-ab9a-e3894b3720f9",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-01",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:44.141Z"
-    },
-    {
-      "id": "ff69f7b5-c3c2-4ef2-982e-fdce857f9cd8",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-02",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.733Z"
-    },
-    {
-      "id": "a2617a94-b8f4-4e28-b346-1f9ae08b8d63",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-03",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.738Z"
-    },
-    {
-      "id": "63576c0b-d6f0-4ee3-81f2-91c8c638b2b4",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-05",
-      "choice": "neutral",
-      "voted_at": "2026-11-13T09:28:43.751Z"
-    },
-    {
-      "id": "21c9267f-b456-4f6e-bbca-e1faaf40c875",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-06",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.756Z"
-    },
-    {
-      "id": "508b6b8e-1785-487e-b91e-b2ba5be2e51f",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-07",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.765Z"
-    },
-    {
-      "id": "42312dec-0a60-408e-b276-37999551c994",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-08",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.904Z"
-    },
-    {
-      "id": "d1eb992d-3ee9-4835-9f89-34bbc135efef",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-09",
-      "choice": "disagree",
-      "voted_at": "2026-11-13T09:28:43.910Z"
-    },
-    {
-      "id": "22f8832f-ff78-4fb2-a673-c50d6e496a7e",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-10",
-      "choice": "neutral",
-      "voted_at": "2026-11-13T09:28:43.917Z"
-    },
-    {
-      "id": "f1c15549-478c-4ae1-8c08-97aedc025a99",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-11",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.925Z"
-    },
-    {
-      "id": "40d7bfef-b4fa-4851-81ad-f0c6737f8647",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-12",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.931Z"
-    },
-    {
-      "id": "15ae283a-a73e-4b66-add1-b163a468e57c",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-13",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.939Z"
-    },
-    {
-      "id": "b333aeb7-40d8-4c90-a610-e93242f0d345",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-14",
-      "choice": "disagree",
-      "voted_at": "2026-11-13T09:28:43.654Z"
-    },
-    {
-      "id": "3fc134a9-4c3e-48c8-b419-a11edace6e3e",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-15",
-      "choice": "neutral",
-      "voted_at": "2026-11-13T09:28:44.136Z"
-    },
-    {
-      "id": "d030c209-8fab-4af9-bccf-8e4dba07204a",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-16",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.649Z"
-    },
-    {
-      "id": "d93ffc6c-1cfe-4201-83c2-ef68e611de44",
-      "agenda_id": "agenda-01",
-      "delegate_id": "db-17",
-      "choice": "agree",
-      "voted_at": "2026-11-13T09:28:43.650Z"
-    }
-  ]
+  "votes": [],
+  "configs": {
+    "system_name": "Hệ thống Biểu quyết Điện tử HĐND xã Phước Trà",
+    "display_title": "HỘI ĐỒNG NHÂN DÂN XÃ PHƯỚC TRÀ",
+    "show_live_results": true,
+    "audio_chime": true
+  }
 }

@@ -11,6 +11,30 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// Tự động nạp cấu hình từ file .env nếu có
+const envPaths = [path.join(__dirname, '.env'), path.join(__dirname, '..', '.env')];
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    try {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      envContent.split(/\r?\n/).forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx !== -1) {
+            const key = trimmed.substring(0, eqIdx).trim();
+            const val = trimmed.substring(eqIdx + 1).trim().replace(/^['"]|['"]$/g, '');
+            if (!process.env[key]) {
+              process.env[key] = val;
+            }
+          }
+        }
+      });
+    } catch (e) {}
+  }
+}
+
+
 // Dữ liệu mẫu chuẩn Hội đồng nhân dân xã Phước Trà
 const INITIAL_DATA = {
   sessions: [
@@ -95,7 +119,13 @@ const INITIAL_DATA = {
       required_ratio: 0.5
     }
   ],
-  votes: []
+  votes: [],
+  configs: {
+    system_name: "Hệ thống Biểu quyết Điện tử HĐND xã Phước Trà",
+    display_title: "HỘI ĐỒNG NHÂN DÂN XÃ PHƯỚC TRÀ",
+    show_live_results: true,
+    audio_chime: true
+  }
 };
 
 // Quản lý bộ nhớ đệm (In-Memory Cache) & Ghi đĩa an toàn, tối ưu tải đồng thời cao (>100 truy cập/giây)
@@ -306,29 +336,183 @@ async function initMysql() {
     // Luôn chọn đúng database được cấp quyền trước khi thao tác
     await mysqlPool.query(`USE \`${mysqlActiveDb}\`;`);
 
+    // 1. Tạo các bảng chức năng chuyên biệt trong TiDB Cloud
+    // Bảng 1: sessions (Quản lý Phiên họp & Cấu hình kỳ họp)
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS \`${mysqlActiveDb}\`.\`sessions\` (
+        \`id\` VARCHAR(50) PRIMARY KEY,
+        \`name\` VARCHAR(500) NOT NULL,
+        \`session_code\` VARCHAR(100),
+        \`location\` VARCHAR(500),
+        \`date\` VARCHAR(100),
+        \`total_delegates\` INT DEFAULT 17,
+        \`is_active\` TINYINT(1) DEFAULT 1,
+        \`active_agenda_id\` VARCHAR(50),
+        \`voting_status\` VARCHAR(50) DEFAULT 'idle',
+        \`voting_time_remaining\` INT DEFAULT 30,
+        \`voting_duration\` INT DEFAULT 30,
+        \`voting_started_at\` VARCHAR(100),
+        \`created_at\` VARCHAR(100),
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Bảng 2: agendas (Quản lý Danh mục Chỉ tiêu / Nghị quyết biểu quyết)
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS \`${mysqlActiveDb}\`.\`agendas\` (
+        \`id\` VARCHAR(50) PRIMARY KEY,
+        \`session_id\` VARCHAR(50),
+        \`order_num\` INT DEFAULT 1,
+        \`code\` VARCHAR(100),
+        \`title\` TEXT NOT NULL,
+        \`description\` LONGTEXT,
+        \`default_duration\` INT DEFAULT 30,
+        \`status\` VARCHAR(50) DEFAULT 'pending',
+        \`required_ratio\` DOUBLE DEFAULT 0.5,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Bảng 3: delegates (Quản lý Đại biểu & Điểm danh / Mã PIN)
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS \`${mysqlActiveDb}\`.\`delegates\` (
+        \`id\` VARCHAR(50) PRIMARY KEY,
+        \`session_id\` VARCHAR(50),
+        \`seat_number\` VARCHAR(50) NOT NULL,
+        \`name\` VARCHAR(255) NOT NULL,
+        \`title\` VARCHAR(255),
+        \`group_name\` VARCHAR(255),
+        \`pin\` VARCHAR(50),
+        \`is_present\` TINYINT(1) DEFAULT 1,
+        \`is_online\` TINYINT(1) DEFAULT 0,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Bảng 4: votes (Chi tiết từng Phiếu biểu quyết của Đại biểu)
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS \`${mysqlActiveDb}\`.\`votes\` (
+        \`id\` VARCHAR(50) PRIMARY KEY,
+        \`agenda_id\` VARCHAR(50) NOT NULL,
+        \`delegate_id\` VARCHAR(50) NOT NULL,
+        \`choice\` VARCHAR(50) NOT NULL,
+        \`voted_at\` VARCHAR(100),
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY \`uq_agenda_delegate\` (\`agenda_id\`, \`delegate_id\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Bảng 5: system_config (Lưu trữ Cấu hình hệ thống, đảm bảo restart Render vẫn nguyên config)
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS \`${mysqlActiveDb}\`.\`system_config\` (
+        \`config_key\` VARCHAR(100) PRIMARY KEY,
+        \`config_value\` LONGTEXT,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Bảng 6: meeting_state (Bảng snapshot tổng hợp dự phòng an toàn tuyệt đối)
     await mysqlPool.query(`
       CREATE TABLE IF NOT EXISTS \`${mysqlActiveDb}\`.\`meeting_state\` (
-        id VARCHAR(50) PRIMARY KEY,
-        data LONGTEXT NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      );
+        \`id\` VARCHAR(50) PRIMARY KEY,
+        \`data\` LONGTEXT NOT NULL,
+        \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
     isMysqlConnected = true;
-    console.log(`✓ KẾT NỐI TIDB CLOUD SERVERLESS (${mysqlActiveDb}) THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.`);
+    console.log(`✓ KẾT NỐI TIDB CLOUD SERVERLESS (${mysqlActiveDb}) THÀNH CÔNG! Đã khởi tạo các bảng chức năng.`);
 
-    const [rows] = await mysqlPool.query(`SELECT data FROM \`${mysqlActiveDb}\`.\`meeting_state\` WHERE id = 'current_meeting_state' LIMIT 1;`);
-    if (rows && rows.length > 0 && rows[0].data) {
-      memoryDb = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
+    // Nạp dữ liệu khôi phục (Hydration) từ các bảng chức năng
+    const [sessionCountRows] = await mysqlPool.query(
+      `SELECT COUNT(*) AS total FROM \`${mysqlActiveDb}\`.\`sessions\`;`
+    );
+    const hasStructuredData = sessionCountRows && sessionCountRows[0] && sessionCountRows[0].total > 0;
+
+    if (hasStructuredData) {
+      const [sessions] = await mysqlPool.query(`SELECT * FROM \`${mysqlActiveDb}\`.\`sessions\`;`);
+      const [agendas] = await mysqlPool.query(`SELECT * FROM \`${mysqlActiveDb}\`.\`agendas\` ORDER BY order_num ASC;`);
+      const [delegates] = await mysqlPool.query(`SELECT * FROM \`${mysqlActiveDb}\`.\`delegates\` ORDER BY seat_number ASC;`);
+      const [votes] = await mysqlPool.query(`SELECT * FROM \`${mysqlActiveDb}\`.\`votes\`;`);
+      const [configs] = await mysqlPool.query(`SELECT * FROM \`${mysqlActiveDb}\`.\`system_config\`;`);
+
+      const loadedConfigs = {};
+      if (Array.isArray(configs)) {
+        configs.forEach(c => {
+          try {
+            loadedConfigs[c.config_key] = JSON.parse(c.config_value);
+          } catch (e) {
+            loadedConfigs[c.config_key] = c.config_value;
+          }
+        });
+      }
+
+      memoryDb = {
+        sessions: sessions.map(s => ({
+          id: s.id,
+          name: s.name,
+          session_code: s.session_code || '',
+          location: s.location || '',
+          date: s.date || '',
+          total_delegates: parseInt(s.total_delegates, 10) || 17,
+          is_active: Boolean(s.is_active),
+          active_agenda_id: s.active_agenda_id || null,
+          voting_status: s.voting_status || 'idle',
+          voting_time_remaining: parseInt(s.voting_time_remaining, 10) || 30,
+          voting_duration: parseInt(s.voting_duration, 10) || 30,
+          voting_started_at: s.voting_started_at || null,
+          created_at: s.created_at || new Date().toISOString()
+        })),
+        agendas: agendas.map(a => ({
+          id: a.id,
+          session_id: a.session_id,
+          order_num: parseInt(a.order_num, 10) || 1,
+          code: a.code || '',
+          title: a.title,
+          description: a.description || '',
+          default_duration: parseInt(a.default_duration, 10) || 30,
+          status: a.status || 'pending',
+          required_ratio: parseFloat(a.required_ratio) || 0.5
+        })),
+        delegates: delegates.map(d => ({
+          id: d.id,
+          session_id: d.session_id,
+          seat_number: d.seat_number,
+          name: d.name,
+          title: d.title || '',
+          group_name: d.group_name || '',
+          pin: String(d.pin || ''),
+          is_present: Boolean(d.is_present),
+          is_online: false
+        })),
+        votes: votes.map(v => ({
+          id: v.id,
+          agenda_id: v.agenda_id,
+          delegate_id: v.delegate_id,
+          choice: v.choice,
+          voted_at: v.voted_at || new Date().toISOString()
+        })),
+        configs: Object.keys(loadedConfigs).length > 0 ? loadedConfigs : (INITIAL_DATA.configs || {})
+      };
+
       saveDbImmediate(memoryDb);
-      console.log('✓ Đã đồng bộ dữ liệu phiên họp từ TiDB Cloud vào RAM.');
+      console.log(`✓ [TiDB Cloud] Đã phục hồi dữ liệu từ các bảng chức năng: ${memoryDb.sessions.length} phiên họp, ${memoryDb.agendas.length} chỉ tiêu, ${memoryDb.delegates.length} đại biểu, ${memoryDb.votes.length} phiếu.`);
     } else {
-      await mysqlPool.query(
-        `INSERT INTO \`${mysqlActiveDb}\`.\`meeting_state\` (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
-         ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();`,
-        [JSON.stringify(memoryDb || readDb())]
+      // Nếu các bảng chức năng chưa có, kiểm tra bảng meeting_state cũ để di chuyển (migration)
+      const [legacyRows] = await mysqlPool.query(
+        `SELECT data FROM \`${mysqlActiveDb}\`.\`meeting_state\` WHERE id = 'current_meeting_state' LIMIT 1;`
       );
-      console.log('✓ Đã khởi tạo dữ liệu mẫu lên TiDB Cloud.');
+      let baseData = null;
+      if (legacyRows && legacyRows.length > 0 && legacyRows[0].data) {
+        baseData = typeof legacyRows[0].data === 'string' ? JSON.parse(legacyRows[0].data) : legacyRows[0].data;
+        console.log('✓ [TiDB Cloud] Tìm thấy dữ liệu snapshot từ meeting_state! Đang di chuyển vào các bảng chức năng...');
+      } else {
+        baseData = memoryDb || readDb();
+        console.log('✓ [TiDB Cloud] Khởi tạo dữ liệu mẫu lần đầu vào các bảng chức năng...');
+      }
+      memoryDb = baseData;
+      await syncToMysqlDirect(baseData);
+      saveDbImmediate(memoryDb);
     }
     return true;
   } catch (err) {
@@ -338,20 +522,203 @@ async function initMysql() {
   }
 }
 
+// Đồng bộ trực tiếp cấu trúc phân rã vào từng bảng chức năng
+async function syncToMysqlDirect(data) {
+  if (!isMysqlConnected || !mysqlPool) return;
+
+  let conn = null;
+  try {
+    conn = await mysqlPool.getConnection();
+    await conn.query(`USE \`${mysqlActiveDb}\`;`);
+
+    // 1. Đồng bộ bảng sessions (Kỳ họp & Cấu hình)
+    if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+      for (const s of data.sessions) {
+        await conn.query(`
+          INSERT INTO \`${mysqlActiveDb}\`.\`sessions\`
+          (id, name, session_code, location, date, total_delegates, is_active, active_agenda_id, voting_status, voting_time_remaining, voting_duration, voting_started_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            session_code = VALUES(session_code),
+            location = VALUES(location),
+            date = VALUES(date),
+            total_delegates = VALUES(total_delegates),
+            is_active = VALUES(is_active),
+            active_agenda_id = VALUES(active_agenda_id),
+            voting_status = VALUES(voting_status),
+            voting_time_remaining = VALUES(voting_time_remaining),
+            voting_duration = VALUES(voting_duration),
+            voting_started_at = VALUES(voting_started_at);
+        `, [
+          s.id,
+          s.name || 'Kỳ họp HĐND',
+          s.session_code || '',
+          s.location || '',
+          s.date || '',
+          parseInt(s.total_delegates, 10) || 17,
+          s.is_active ? 1 : 0,
+          s.active_agenda_id || null,
+          s.voting_status || 'idle',
+          parseInt(s.voting_time_remaining, 10) || 30,
+          parseInt(s.voting_duration, 10) || 30,
+          s.voting_started_at || null,
+          s.created_at || new Date().toISOString()
+        ]);
+      }
+
+      const sessionIds = data.sessions.map(s => s.id);
+      if (sessionIds.length > 0) {
+        const sPlaceholders = sessionIds.map(() => '?').join(',');
+        await conn.query(`DELETE FROM \`${mysqlActiveDb}\`.\`sessions\` WHERE id NOT IN (${sPlaceholders});`, sessionIds);
+      }
+    }
+
+    // 2. Đồng bộ bảng agendas (Danh mục Chỉ tiêu / Nghị quyết)
+    if (Array.isArray(data.agendas)) {
+      if (data.agendas.length === 0) {
+        await conn.query(`DELETE FROM \`${mysqlActiveDb}\`.\`agendas\`;`);
+      } else {
+        for (const a of data.agendas) {
+          await conn.query(`
+            INSERT INTO \`${mysqlActiveDb}\`.\`agendas\`
+            (id, session_id, order_num, code, title, description, default_duration, status, required_ratio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              session_id = VALUES(session_id),
+              order_num = VALUES(order_num),
+              code = VALUES(code),
+              title = VALUES(title),
+              description = VALUES(description),
+              default_duration = VALUES(default_duration),
+              status = VALUES(status),
+              required_ratio = VALUES(required_ratio);
+          `, [
+            a.id,
+            a.session_id || null,
+            parseInt(a.order_num, 10) || 1,
+            a.code || '',
+            a.title || '',
+            a.description || '',
+            parseInt(a.default_duration, 10) || 30,
+            a.status || 'pending',
+            parseFloat(a.required_ratio) || 0.5
+          ]);
+        }
+
+        const agendaIds = data.agendas.map(a => a.id);
+        const aPlaceholders = agendaIds.map(() => '?').join(',');
+        await conn.query(`DELETE FROM \`${mysqlActiveDb}\`.\`agendas\` WHERE id NOT IN (${aPlaceholders});`, agendaIds);
+      }
+    }
+
+    // 3. Đồng bộ bảng delegates (Đại biểu & Điểm danh)
+    if (Array.isArray(data.delegates)) {
+      if (data.delegates.length === 0) {
+        await conn.query(`DELETE FROM \`${mysqlActiveDb}\`.\`delegates\`;`);
+      } else {
+        for (const d of data.delegates) {
+          await conn.query(`
+            INSERT INTO \`${mysqlActiveDb}\`.\`delegates\`
+            (id, session_id, seat_number, name, title, group_name, pin, is_present, is_online)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              session_id = VALUES(session_id),
+              seat_number = VALUES(seat_number),
+              name = VALUES(name),
+              title = VALUES(title),
+              group_name = VALUES(group_name),
+              pin = VALUES(pin),
+              is_present = VALUES(is_present),
+              is_online = VALUES(is_online);
+          `, [
+            d.id,
+            d.session_id || null,
+            d.seat_number || '',
+            d.name || '',
+            d.title || '',
+            d.group_name || '',
+            String(d.pin || ''),
+            d.is_present ? 1 : 0,
+            d.is_online ? 1 : 0
+          ]);
+        }
+
+        const delegateIds = data.delegates.map(d => d.id);
+        const dPlaceholders = delegateIds.map(() => '?').join(',');
+        await conn.query(`DELETE FROM \`${mysqlActiveDb}\`.\`delegates\` WHERE id NOT IN (${dPlaceholders});`, delegateIds);
+      }
+    }
+
+    // 4. Đồng bộ bảng votes (Phiếu biểu quyết)
+    if (Array.isArray(data.votes)) {
+      if (data.votes.length === 0) {
+        await conn.query(`DELETE FROM \`${mysqlActiveDb}\`.\`votes\`;`);
+      } else {
+        for (const v of data.votes) {
+          await conn.query(`
+            INSERT INTO \`${mysqlActiveDb}\`.\`votes\`
+            (id, agenda_id, delegate_id, choice, voted_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              choice = VALUES(choice),
+              voted_at = VALUES(voted_at);
+          `, [
+            v.id,
+            v.agenda_id,
+            v.delegate_id,
+            v.choice,
+            v.voted_at || new Date().toISOString()
+          ]);
+        }
+
+        const voteIds = data.votes.map(v => v.id);
+        const vPlaceholders = voteIds.map(() => '?').join(',');
+        await conn.query(`DELETE FROM \`${mysqlActiveDb}\`.\`votes\` WHERE id NOT IN (${vPlaceholders});`, voteIds);
+      }
+    }
+
+    // 5. Đồng bộ bảng system_config (Cấu hình hệ thống)
+    if (data.configs && typeof data.configs === 'object') {
+      for (const [key, value] of Object.entries(data.configs)) {
+        const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        await conn.query(`
+          INSERT INTO \`${mysqlActiveDb}\`.\`system_config\` (config_key, config_value)
+          VALUES (?, ?)
+          ON DUPLICATE KEY UPDATE config_value = VALUES(config_value);
+        `, [key, valStr]);
+      }
+    }
+
+    // 6. Đồng bộ snapshot dự phòng meeting_state
+    await conn.query(`
+      INSERT INTO \`${mysqlActiveDb}\`.\`meeting_state\` (id, data, updated_at)
+      VALUES ('current_meeting_state', ?, NOW())
+      ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();
+    `, [JSON.stringify(data)]);
+
+  } catch (err) {
+    console.error('⚠ Lỗi đồng bộ TiDB Cloud Serverless:', err.message);
+  } finally {
+    if (conn) conn.release();
+  }
+}
+
 function syncToMysqlAsync(data) {
   if (!isMysqlConnected || !mysqlPool) return;
-  mysqlPool.query(
-    `INSERT INTO \`${mysqlActiveDb}\`.\`meeting_state\` (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
-     ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();`,
-    [JSON.stringify(data)]
-  ).catch(err => {
-    console.error('Lỗi sync TiDB Cloud:', err.message);
+  setImmediate(() => {
+    syncToMysqlDirect(data).catch(err => {
+      console.error('Lỗi sync async TiDB Cloud:', err.message);
+    });
   });
 }
 
 // Đọc dữ liệu (ưu tiên bộ nhớ RAM siêu tốc, 0ms, không nghẽn I/O ổ đĩa)
 function readDb() {
-  if (memoryDb) return memoryDb;
+  if (memoryDb) {
+    if (!memoryDb.configs) memoryDb.configs = JSON.parse(JSON.stringify(INITIAL_DATA.configs || {}));
+    return memoryDb;
+  }
   try {
     if (!fs.existsSync(DB_FILE)) {
       memoryDb = JSON.parse(JSON.stringify(INITIAL_DATA));
@@ -360,6 +727,10 @@ function readDb() {
     }
     const content = fs.readFileSync(DB_FILE, 'utf8');
     memoryDb = JSON.parse(content);
+    if (!memoryDb.configs) {
+      memoryDb.configs = JSON.parse(JSON.stringify(INITIAL_DATA.configs || {}));
+      saveDbImmediate(memoryDb);
+    }
     return memoryDb;
   } catch (error) {
     console.error("Lỗi đọc cơ sở dữ liệu:", error);
@@ -741,18 +1112,47 @@ class Database {
     return true;
   }
 
+  // --- SYSTEM CONFIG ---
+  static getConfig(key, defaultValue = null) {
+    const db = readDb();
+    if (!db.configs) db.configs = {};
+    return db.configs[key] !== undefined ? db.configs[key] : defaultValue;
+  }
+
+  static setConfig(key, value) {
+    const db = readDb();
+    if (!db.configs) db.configs = {};
+    db.configs[key] = value;
+    writeDb(db);
+    return db.configs;
+  }
+
+  static getAllConfigs() {
+    const db = readDb();
+    return db.configs || {};
+  }
+
   // Tình trạng kết nối lưu trữ
   static getStorageStatus() {
     let storageType = 'Cục bộ (database.json)';
-    if (isMysqlConnected) storageType = 'Cloud TiDB Serverless (5GB Vĩnh viễn)';
-    else if (isPgConnected) storageType = 'Cloud PostgreSQL (Neon / Supabase - Vĩnh viễn)';
-    else if (isMongoConnected) storageType = 'MongoDB Atlas (Cloud Vĩnh Viễn)';
+    let detail = 'Chưa kết nối Cloud DB';
+    if (isMysqlConnected) {
+      storageType = 'Cloud TiDB Serverless (MySQL 5GB Miễn Phí)';
+      detail = `Database: '${mysqlActiveDb}' | Bảng chức năng: sessions, agendas, delegates, votes, system_config, meeting_state`;
+    } else if (isPgConnected) {
+      storageType = 'Cloud PostgreSQL (Neon / Supabase - Vĩnh viễn)';
+      detail = 'PostgreSQL Cloud Storage';
+    } else if (isMongoConnected) {
+      storageType = 'MongoDB Atlas (Cloud Vĩnh Viễn)';
+      detail = 'MongoDB Atlas Cloud';
+    }
     return {
       isCloudConnected: isMysqlConnected || isPgConnected || isMongoConnected,
       isMysqlConnected,
       isPgConnected,
       isMongoConnected,
-      storageType
+      storageType,
+      detail
     };
   }
 

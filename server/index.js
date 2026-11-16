@@ -103,7 +103,8 @@ function getFullState() {
     agendas: agendas,
     delegates: delegates,
     voting_status: activeSession.voting_status,
-    time_remaining: activeSession.voting_time_remaining
+    time_remaining: activeSession.voting_time_remaining,
+    configs: Database.getAllConfigs()
   };
 }
 
@@ -248,6 +249,23 @@ app.get('/api/all-results', (req, res) => {
 app.get('/api/full-state', (req, res) => {
   const state = getFullState();
   res.json(state || {});
+});
+
+// Cấu hình hệ thống (Lưu trữ vĩnh viễn trên Cloud)
+app.get('/api/configs', (req, res) => {
+  res.json(Database.getAllConfigs());
+});
+
+app.put('/api/configs', (req, res) => {
+  const updates = req.body;
+  if (typeof updates === 'object' && updates !== null) {
+    for (const [k, v] of Object.entries(updates)) {
+      Database.setConfig(k, v);
+    }
+    broadcastFullState();
+    return res.json({ success: true, configs: Database.getAllConfigs() });
+  }
+  res.status(400).json({ error: 'Dữ liệu cấu hình không hợp lệ' });
 });
 
 // REST API BỔ TRỢ ĐIỀU HÀNH BIỂU QUYẾT (CHỐNG NGHẼN HOẶC MẤT KẾT NỐI SOCKET)
@@ -627,6 +645,17 @@ io.on('connection', (socket) => {
     if (delegate) {
       Database.updateDelegate(delegateId, { is_present: !delegate.is_present });
       console.log(`[Admin Socket] Đổi điểm danh đại biểu ${delegate.name}: ${!delegate.is_present ? 'Có mặt' : 'Vắng mặt'}`);
+      broadcastFullState();
+    }
+  });
+
+  // 15. Admin: Cập nhật cấu hình hệ thống qua Socket
+  socket.on('admin_update_config', (configs) => {
+    if (typeof configs === 'object' && configs !== null) {
+      for (const [k, v] of Object.entries(configs)) {
+        Database.setConfig(k, v);
+      }
+      console.log('[Admin Socket] Đã lưu cấu hình hệ thống lên Cloud');
       broadcastFullState();
     }
   });
