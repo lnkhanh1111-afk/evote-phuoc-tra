@@ -37,6 +37,10 @@ export default function AdminDashboard({ state, refreshState }) {
   const [showEditSessionModal, setShowEditSessionModal] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [dbStatus, setDbStatus] = useState({ isCloudConnected: false, storageType: 'Cục bộ' });
+  const [showDbModal, setShowDbModal] = useState(false);
+  const [dbUriInput, setDbUriInput] = useState('');
+  const [isConnectingDb, setIsConnectingDb] = useState(false);
+  const [dbFeedback, setDbFeedback] = useState({ error: '', success: '' });
   const fileInputRef = useRef(null);
   const [sessionForm, setSessionForm] = useState({
     name: '',
@@ -57,6 +61,59 @@ export default function AdminDashboard({ state, refreshState }) {
     const timer = setInterval(fetchStatus, 15000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleReconnectDb = async () => {
+    setIsConnectingDb(true);
+    setDbFeedback({ error: '', success: '' });
+    try {
+      const res = await fetch(`${API_URL}/api/database-reconnect`, { method: 'POST' });
+      const data = await res.json();
+      setDbStatus(data.status || {});
+      if (data.connected) {
+        setDbFeedback({ error: '', success: '✓ Đã kết nối Cloud Database thành công!' });
+        if (refreshState) refreshState();
+      } else {
+        setDbFeedback({ error: data.status?.lastError || 'Không thể kết nối. Vui lòng kiểm tra lại cấu hình chuỗi kết nối.', success: '' });
+      }
+    } catch (err) {
+      setDbFeedback({ error: 'Lỗi mạng: ' + err.message, success: '' });
+    } finally {
+      setIsConnectingDb(false);
+    }
+  };
+
+  const handleSaveDbUri = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!dbUriInput.trim()) {
+      setDbFeedback({ error: 'Vui lòng dán chuỗi kết nối Cloud Database', success: '' });
+      return;
+    }
+    setIsConnectingDb(true);
+    setDbFeedback({ error: '', success: '' });
+    try {
+      const res = await fetch(`${API_URL}/api/database-connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri: dbUriInput.trim() })
+      });
+      const data = await res.json();
+      setDbStatus(data.status || {});
+      if (data.success) {
+        setDbFeedback({ error: '', success: '✓ KẾT NỐI TIDB CLOUD THÀNH CÔNG! Dữ liệu đã chuyển sang Cloud lưu vĩnh viễn.' });
+        if (refreshState) refreshState();
+        setTimeout(() => {
+          setShowDbModal(false);
+          setDbFeedback({ error: '', success: '' });
+        }, 2500);
+      } else {
+        setDbFeedback({ error: data.error || 'Kết nối thất bại', success: '' });
+      }
+    } catch (err) {
+      setDbFeedback({ error: 'Lỗi gửi yêu cầu kết nối: ' + err.message, success: '' });
+    } finally {
+      setIsConnectingDb(false);
+    }
+  };
 
   const session = state.session;
 
@@ -364,20 +421,21 @@ export default function AdminDashboard({ state, refreshState }) {
                   BÀN ĐIỀU HÀNH THƯ KÝ / CHỦ TỌA
                 </span>
                 <span className="text-xs text-slate-500 font-semibold">HĐND XÃ PHƯỚC TRÀ</span>
-                <span
-                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all ${
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDbModal(true);
+                    setDbFeedback({ error: '', success: '' });
+                  }}
+                  className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer ${
                     dbStatus.isCloudConnected
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                      : 'bg-amber-50 text-amber-700 border-amber-300'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                      : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 animate-pulse'
                   }`}
-                  title={
-                    dbStatus.isCloudConnected
-                      ? `Đang lưu trữ trực tiếp trên ${dbStatus.storageType || 'Cloud'}, dữ liệu vĩnh viễn không bao giờ mất`
-                      : 'Đang lưu trữ cục bộ file database.json trên máy chủ Render (có thể bị reset nếu server khởi động lại)'
-                  }
+                  title="Nhấn để xem trạng thái kết nối Cloud Database hoặc nhập chuỗi kết nối"
                 >
-                  {dbStatus.isCloudConnected ? `☁️ ${dbStatus.storageType || 'Cloud: Đã kết nối'}` : '💾 Lưu trữ: Cục bộ'}
-                </span>
+                  <span>{dbStatus.isCloudConnected ? `☁️ ${dbStatus.storageType || 'Cloud TiDB: Đã kết nối'}` : '💾 Lưu trữ: Cục bộ (Nhấp để kết nối Cloud DB)'}</span>
+                </button>
               </div>
               
               <div className="flex flex-wrap items-center gap-3 mt-1.5">
@@ -1549,6 +1607,119 @@ export default function AdminDashboard({ state, refreshState }) {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL CẤU HÌNH & KẾT NỐI CLOUD DATABASE */}
+        {showDbModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 bg-red-100 text-red-700 rounded-xl">☁️</span>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800">Cấu Hình Cloud Database (TiDB / MySQL)</h3>
+                    <p className="text-xs text-slate-500">Đảm bảo dữ liệu lưu trữ vĩnh viễn, không bị mất khi Render chạy lại</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDbModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Khối hiển thị trạng thái hiện tại */}
+              <div className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+                dbStatus.isCloudConnected
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-amber-50 border-amber-300 text-amber-900'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold">Trạng thái hiện tại:</span>
+                  <span className={`px-2 py-0.5 rounded font-black uppercase text-[10px] ${
+                    dbStatus.isCloudConnected ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                  }`}>
+                    {dbStatus.isCloudConnected ? 'ĐÃ KẾT NỐI CLOUD' : 'ĐANG LƯU CỤC BỘ (JSON)'}
+                  </span>
+                </div>
+                <p><b>Loại lưu trữ:</b> {dbStatus.storageType || 'Cục bộ'}</p>
+                {dbStatus.detail && <p className="text-[11px] opacity-90">{dbStatus.detail}</p>}
+                {dbStatus.lastError && (
+                  <div className="mt-2 p-2 bg-rose-100 border border-rose-200 text-rose-800 rounded text-[11px]">
+                    <b>Lỗi kết nối gần nhất:</b> {dbStatus.lastError}
+                  </div>
+                )}
+              </div>
+
+              {/* Nút thử kết nối lại */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleReconnectDb}
+                  disabled={isConnectingDb}
+                  className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition shadow active:scale-95 disabled:opacity-50"
+                >
+                  {isConnectingDb ? 'Đang kết nối...' : '🔄 Thử kết nối lại với cấu hình hiện tại'}
+                </button>
+              </div>
+
+              {/* Form nhập chuỗi kết nối trực tiếp */}
+              <form onSubmit={handleSaveDbUri} className="space-y-3 pt-3 border-t border-slate-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Nhập chuỗi kết nối TiDB Cloud (hoặc MySQL):
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={dbUriInput}
+                    onChange={(e) => setDbUriInput(e.target.value)}
+                    placeholder="mysql://Dw3TDdCpJsTGBmw.root:MẬT_KHẨU@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/test?ssl={&quot;rejectUnauthorized&quot;:true}"
+                    className="w-full text-xs font-mono p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-red-600"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    * Chuỗi kết nối lấy từ mục <b>Connect</b> trên TiDB Cloud Serverless (chọn General / MySQL client).
+                  </p>
+                </div>
+
+                {dbFeedback.error && (
+                  <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2 rounded-lg border border-rose-200">
+                    {dbFeedback.error}
+                  </p>
+                )}
+                {dbFeedback.success && (
+                  <p className="text-xs text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                    {dbFeedback.success}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDbModal(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isConnectingDb}
+                    className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-bold rounded-xl transition shadow disabled:opacity-50"
+                  >
+                    {isConnectingDb ? 'Đang kiểm tra kết nối...' : 'Lưu & Kết Nối Database Ngay'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                <p className="font-bold text-slate-700">💡 Hướng dẫn lưu cấu hình vĩnh viễn trên Render:</p>
+                <p>1. Mở Render Dashboard ➔ Chọn Web Service ➔ Mục <b>Environment</b>.</p>
+                <p>2. Thêm biến <b>`TIDB_URL`</b> và dán chuỗi kết nối TiDB Cloud ở trên.</p>
+                <p>3. Nhấn <b>Save Changes</b> để Render tự động kết nối mỗi khi khởi động.</p>
+              </div>
             </div>
           </div>
         )}

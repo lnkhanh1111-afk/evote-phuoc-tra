@@ -121,9 +121,41 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', serverTime: new Date().toISOString() });
 });
 
-// Tình trạng cơ sở dữ liệu (Cloud MongoDB Atlas vs File JSON)
+// Tình trạng cơ sở dữ liệu (Cloud TiDB Serverless vs File JSON)
 app.get('/api/database-status', (req, res) => {
   res.json(Database.getStorageStatus());
+});
+
+// Thử kết nối lại Cloud Database
+app.post('/api/database-reconnect', async (req, res) => {
+  let connected = false;
+  try {
+    connected = await Database.initMysql(3, 1200);
+  } catch (e) {}
+
+  if (!connected && process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+    connected = await Database.initPg();
+  }
+  if (!connected && process.env.MONGODB_URI) {
+    connected = await Database.initMongo();
+  }
+  broadcastFullState();
+  res.json({
+    connected,
+    status: Database.getStorageStatus()
+  });
+});
+
+// Cấu hình & kết nối trực tiếp chuỗi Cloud Database từ giao diện Admin
+app.post('/api/database-connect', async (req, res) => {
+  const { uri } = req.body;
+  try {
+    await Database.connectCustom(uri);
+    broadcastFullState();
+    res.json({ success: true, status: Database.getStorageStatus() });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message, status: Database.getStorageStatus() });
+  }
 });
 
 // 1. Sessions
@@ -778,11 +810,8 @@ server.listen(PORT, '0.0.0.0', async () => {
 
   // Tự động kết nối Cloud Database (TiDB Cloud MySQL, PostgreSQL Neon/Supabase hoặc MongoDB Atlas)
   try {
-    let connected = false;
-    if (process.env.TIDB_URL || process.env.TIDB_HOST || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('mysql'))) {
-      connected = await Database.initMysql();
-    }
-    if (!connected && process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('mysql')) {
+    let connected = await Database.initMysql(3, 1200);
+    if (!connected && process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
       connected = await Database.initPg();
     }
     if (!connected && process.env.MONGODB_URI) {
