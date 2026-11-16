@@ -8,7 +8,7 @@ import {
 import NationalEmblem from './NationalEmblem';
 import NationalFlag from './NationalFlag';
 
-export default function AdminDashboard({ state }) {
+export default function AdminDashboard({ state, refreshState }) {
   const [activeTab, setActiveTab] = useState('controller'); // 'controller' | 'agendas' | 'delegates' | 'report'
   const [durationInput, setDurationInput] = useState(30);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -107,6 +107,7 @@ export default function AdminDashboard({ state }) {
       console.warn('REST save fallback:', err);
     }
 
+    if (refreshState) refreshState();
     setShowEditSessionModal(false);
     setSaveSuccessMsg('✓ Đã cập nhật thành công Tên cuộc họp và Số lượng đại biểu!');
     setTimeout(() => setSaveSuccessMsg(''), 5000);
@@ -128,6 +129,7 @@ export default function AdminDashboard({ state }) {
         body: JSON.stringify({ agendaId })
       });
     } catch (e) {}
+    if (refreshState) refreshState();
   };
 
   const handleStartVoting = async () => {
@@ -143,6 +145,7 @@ export default function AdminDashboard({ state }) {
         body: JSON.stringify({ agendaId: currentAgenda.id, duration: durationInput })
       });
     } catch (e) {}
+    if (refreshState) refreshState();
   };
 
   const handleLockVoting = async () => {
@@ -150,6 +153,7 @@ export default function AdminDashboard({ state }) {
     try {
       await fetch(`${API_URL}/api/voting/lock`, { method: 'POST' });
     } catch (e) {}
+    if (refreshState) refreshState();
   };
 
   const handleExtendVoting = async () => {
@@ -161,6 +165,7 @@ export default function AdminDashboard({ state }) {
         body: JSON.stringify({ seconds: 15 })
       });
     } catch (e) {}
+    if (refreshState) refreshState();
   };
 
   const handlePublishResults = async () => {
@@ -168,6 +173,7 @@ export default function AdminDashboard({ state }) {
     try {
       await fetch(`${API_URL}/api/voting/publish`, { method: 'POST' });
     } catch (e) {}
+    if (refreshState) refreshState();
   };
 
   const handleResetAgenda = async () => {
@@ -181,6 +187,7 @@ export default function AdminDashboard({ state }) {
           body: JSON.stringify({ agendaId: currentAgenda.id })
         });
       } catch (e) {}
+      if (refreshState) refreshState();
     }
   };
 
@@ -191,6 +198,7 @@ export default function AdminDashboard({ state }) {
       const res = await fetch(`${API_URL}/api/simulator/auto-vote`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) alert(data.error || 'Có lỗi khi chạy simulator');
+      if (refreshState) refreshState();
     } catch (e) {
       alert('Không kết nối được server simulator: ' + e.message);
     } finally {
@@ -202,6 +210,7 @@ export default function AdminDashboard({ state }) {
   const handleResetAllData = async () => {
     if (window.confirm('CẢNH BÁO: Khôi phục toàn bộ dữ liệu kỳ họp về mặc định ban đầu?')) {
       await fetch(`${API_URL}/api/reset-all`, { method: 'POST' });
+      if (refreshState) refreshState();
     }
   };
 
@@ -227,6 +236,7 @@ export default function AdminDashboard({ state }) {
           const result = await res.json();
           if (res.ok) {
             setSaveSuccessMsg('Khôi phục dữ liệu kỳ họp từ file sao lưu thành công!');
+            if (refreshState) refreshState();
           } else {
             alert(result.error || 'Lỗi khôi phục');
           }
@@ -245,6 +255,7 @@ export default function AdminDashboard({ state }) {
     try {
       await fetch(`${API_URL}/api/delegates/${delId}/toggle-present`, { method: 'POST' });
     } catch (e) {}
+    if (refreshState) refreshState();
   };
 
   // Thêm chỉ tiêu mới
@@ -261,6 +272,7 @@ export default function AdminDashboard({ state }) {
     } catch (e) {}
     setShowAddAgendaModal(false);
     setNewAgenda({ title: '', code: '', description: '', default_duration: 30, required_ratio: 0.5 });
+    if (refreshState) refreshState();
   };
 
   // Xóa chỉ tiêu
@@ -270,6 +282,7 @@ export default function AdminDashboard({ state }) {
       try {
         await fetch(`${API_URL}/api/agendas/${id}`, { method: 'DELETE' });
       } catch (e) {}
+      if (refreshState) refreshState();
     }
   };
 
@@ -287,6 +300,7 @@ export default function AdminDashboard({ state }) {
     } catch (e) {}
     setShowAddDelegateModal(false);
     setNewDelegate({ name: '', seat_number: '', title: 'Đại biểu HĐND', group_name: 'Tổ đại biểu số 1', pin: '' });
+    if (refreshState) refreshState();
   };
 
   // Xóa đại biểu
@@ -296,6 +310,7 @@ export default function AdminDashboard({ state }) {
       try {
         await fetch(`${API_URL}/api/delegates/${id}`, { method: 'DELETE' });
       } catch (e) {}
+      if (refreshState) refreshState();
     }
   };
 

@@ -36,6 +36,21 @@ export default function App() {
     time_remaining: 30
   });
 
+  // Tải trước dữ liệu ngay lập tức qua REST API (không cần chờ Socket bắt tay)
+  const fetchFullState = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/full-state`);
+      const data = await res.json();
+      if (data && data.session) {
+        setAppState(prev => ({
+          ...prev,
+          ...data
+        }));
+      }
+      return data;
+    } catch (e) {}
+  };
+
   useEffect(() => {
     // Lắng nghe sự kiện thay đổi hash/URL để đổi trang mượt mà
     const handleUrlChange = () => {
@@ -44,21 +59,6 @@ export default function App() {
 
     window.addEventListener('hashchange', handleUrlChange);
     window.addEventListener('popstate', handleUrlChange);
-
-    // Tải trước dữ liệu ngay lập tức qua REST API (không cần chờ Socket bắt tay)
-    const fetchFullState = () => {
-      fetch(`${API_URL}/api/full-state`)
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.session) {
-            setAppState(prev => ({
-              ...prev,
-              ...data
-            }));
-          }
-        })
-        .catch(() => {});
-    };
 
     fetchFullState();
     // Tự động đồng bộ dự phòng mỗi 10 giây
@@ -97,17 +97,17 @@ export default function App() {
     <div className="min-h-screen bg-slate-100">
       {/* 1. MÀN HÌNH ĐẠI BIỂU: Tuyệt đối chỉ có biểu quyết, không có nút chuyển sang admin hay màn hình LED */}
       {currentView === 'tablet' && (
-        <TabletVote state={appState} />
+        <TabletVote state={appState} refreshState={fetchFullState} />
       )}
 
       {/* 2. MÀN HÌNH TRÌNH CHIẾU HỘI TRƯỜNG (LED): Chuyên biệt cho máy chiếu, trang nghiêm, không lộ thanh admin */}
       {currentView === 'screen' && (
-        <ScreenDisplay state={appState} />
+        <ScreenDisplay state={appState} refreshState={fetchFullState} />
       )}
 
       {/* 3. TRANG QUẢN TRỊ & ĐIỀU HÀNH: Dành riêng cho Thư ký / Chủ tọa */}
       {currentView === 'admin' && (
-        <AdminDashboard state={appState} />
+        <AdminDashboard state={appState} refreshState={fetchFullState} />
       )}
     </div>
   );

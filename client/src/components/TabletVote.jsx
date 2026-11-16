@@ -5,7 +5,7 @@ import NationalEmblem from './NationalEmblem';
 import NationalFlag from './NationalFlag';
 import { sounds } from '../utils/sound';
 
-export default function TabletVote({ state }) {
+export default function TabletVote({ state, refreshState }) {
   const [selectedDelegateId, setSelectedDelegateId] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -68,6 +68,16 @@ export default function TabletVote({ state }) {
       socket.emit('delegate_login', { delegateId: selectedDelegateId });
     }
   }, [selectedDelegateId]);
+
+  // Thăm dò đồng bộ liên tục khi phiên biểu quyết đang diễn ra (đảm bảo không bao giờ trễ)
+  useEffect(() => {
+    if (votingStatus === 'voting' && refreshState) {
+      const timer = setInterval(() => {
+        refreshState();
+      }, 2500);
+      return () => clearInterval(timer);
+    }
+  }, [votingStatus, refreshState]);
 
   // Rung máy tính bảng và phát chuông báo khi có phiên biểu quyết mới mở ra
   useEffect(() => {
@@ -170,6 +180,8 @@ export default function TabletVote({ state }) {
     } catch (e) {
       console.warn('Vote REST fallback error:', e);
     }
+
+    if (refreshState) refreshState();
   };
 
   // MÀN HÌNH 1: CHƯA ĐĂNG NHẬP (CHỌN ĐẠI BIỂU)

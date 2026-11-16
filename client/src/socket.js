@@ -15,9 +15,11 @@ const getSocketUrl = () => {
 export const socket = io(getSocketUrl(), {
   autoConnect: true,
   reconnection: true,
-  reconnectionAttempts: 20,
+  reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
-  timeout: 10000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000,
+  transports: ['polling', 'websocket']
 });
 
 export const API_URL = getSocketUrl();

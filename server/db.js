@@ -150,6 +150,17 @@ async function initMongo() {
   }
 }
 
+function syncToMongoAsync(data) {
+  if (!isMongoConnected || !mongoCollection) return;
+  mongoCollection.updateOne(
+    { _id: 'current_meeting_state' },
+    { $set: { data: data, updatedAt: new Date() } },
+    { upsert: true }
+  ).catch(err => {
+    console.error('Lỗi sync Cloud MongoDB:', err.message);
+  });
+}
+
 // Tích hợp Cloud PostgreSQL (Neon.tech / Supabase qua biến môi trường DATABASE_URL)
 let pgPool = null;
 let isPgConnected = false;
@@ -464,7 +475,7 @@ class Database {
   // --- DELEGATES ---
   static getDelegates(sessionId) {
     const db = readDb();
-    return db.delegates.filter(d => !sessionId || d.session_id === sessionId);
+    return db.delegates.filter(d => !sessionId || !d.session_id || d.session_id === sessionId);
   }
 
   static getDelegateById(id) {
@@ -512,8 +523,8 @@ class Database {
   static getAgendas(sessionId) {
     const db = readDb();
     return db.agendas
-      .filter(a => !sessionId || a.session_id === sessionId)
-      .sort((a, b) => a.order_num - b.order_num);
+      .filter(a => !sessionId || !a.session_id || a.session_id === sessionId)
+      .sort((a, b) => (a.order_num || 0) - (b.order_num || 0));
   }
 
   static getAgendaById(id) {
@@ -609,7 +620,7 @@ class Database {
     const db = readDb();
     const session = db.sessions.find(s => s.id === sessionId) || this.getActiveSession();
     const agenda = agendaId ? db.agendas.find(a => a.id === agendaId) : null;
-    const delegates = db.delegates.filter(d => d.session_id === (session ? session.id : null));
+    const delegates = db.delegates.filter(d => !session || !d.session_id || d.session_id === session.id);
     const votes = agendaId ? db.votes.filter(v => v.agenda_id === agendaId) : [];
 
     const totalDelegates = session ? Math.max(session.total_delegates || 0, delegates.length) : delegates.length;
