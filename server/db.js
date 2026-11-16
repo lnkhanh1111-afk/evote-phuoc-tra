@@ -890,6 +890,17 @@ class Database {
     return true;
   }
 
+  static checkinAllDelegates(sessionId, isPresent = true) {
+    const db = readDb();
+    db.delegates.forEach(d => {
+      if (!sessionId || !d.session_id || d.session_id === sessionId) {
+        d.is_present = isPresent;
+      }
+    });
+    writeDb(db);
+    return db.delegates;
+  }
+
   // --- AGENDAS ---
   static getAgendas(sessionId) {
     const db = readDb();

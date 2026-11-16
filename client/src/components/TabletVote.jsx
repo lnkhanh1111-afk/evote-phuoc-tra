@@ -62,11 +62,35 @@ export default function TabletVote({ state, refreshState }) {
     }
   }, [state.results, selectedDelegateId, currentAgenda?.id]);
 
-  // Đăng nhập socket khi đã có delegate ID
+  // Đăng nhập socket & tự động phục hồi kết nối online khi socket connect lại
   useEffect(() => {
+    const handleConnect = () => {
+      if (selectedDelegateId) {
+        socket.emit('delegate_login', { delegateId: selectedDelegateId });
+        fetch(`${API_URL}/api/delegates/${selectedDelegateId}/login`, { method: 'POST' }).catch(() => {});
+      }
+    };
+
+    socket.on('connect', handleConnect);
     if (selectedDelegateId) {
-      socket.emit('delegate_login', { delegateId: selectedDelegateId });
+      handleConnect();
     }
+
+    return () => {
+      socket.off('connect', handleConnect);
+    };
+  }, [selectedDelegateId]);
+
+  // Heartbeat duy trì trạng thái online liên tục từ tablet (mỗi 8 giây)
+  useEffect(() => {
+    if (!selectedDelegateId) return;
+    const heartbeatTimer = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('delegate_heartbeat', { delegateId: selectedDelegateId });
+      }
+      fetch(`${API_URL}/api/delegates/${selectedDelegateId}/heartbeat`, { method: 'POST' }).catch(() => {});
+    }, 8000);
+    return () => clearInterval(heartbeatTimer);
   }, [selectedDelegateId]);
 
   // Thăm dò đồng bộ liên tục khi phiên biểu quyết đang diễn ra (đảm bảo không bao giờ trễ)
@@ -129,6 +153,8 @@ export default function TabletVote({ state, refreshState }) {
     setSelectedDelegateId(delId);
     localStorage.setItem('evote_delegate_id', delId);
     socket.emit('delegate_login', { delegateId: delId });
+    fetch(`${API_URL}/api/delegates/${delId}/login`, { method: 'POST' }).catch(() => {});
+    if (refreshState) refreshState();
   };
 
   const handleLogout = () => {

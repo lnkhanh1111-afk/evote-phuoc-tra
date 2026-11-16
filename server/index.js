@@ -189,9 +189,55 @@ app.put('/api/delegates/:id', (req, res) => {
 app.post('/api/delegates/:id/toggle-present', (req, res) => {
   const delegate = Database.getDelegateById(req.params.id);
   if (delegate) {
-    const updated = Database.updateDelegate(req.params.id, { is_present: !delegate.is_present });
+    const targetState = (req.body && req.body.is_present !== undefined)
+      ? Boolean(req.body.is_present)
+      : !delegate.is_present;
+    const updated = Database.updateDelegate(req.params.id, { is_present: targetState });
     broadcastFullState();
     return res.json(updated);
+  }
+  res.status(404).json({ error: 'Không tìm thấy đại biểu' });
+});
+
+// Điểm danh tất cả có mặt
+app.post('/api/delegates/checkin-all', (req, res) => {
+  const session = Database.getActiveSession();
+  const updated = Database.checkinAllDelegates(session ? session.id : null, true);
+  broadcastFullState();
+  res.json({ success: true, delegates: updated });
+});
+
+// Đặt tất cả vắng mặt
+app.post('/api/delegates/checkout-all', (req, res) => {
+  const session = Database.getActiveSession();
+  const updated = Database.checkinAllDelegates(session ? session.id : null, false);
+  broadcastFullState();
+  res.json({ success: true, delegates: updated });
+});
+
+// Đại biểu đăng nhập qua REST API
+app.post('/api/delegates/:id/login', (req, res) => {
+  const delegate = Database.getDelegateById(req.params.id);
+  if (delegate) {
+    Database.updateDelegate(req.params.id, {
+      is_online: true,
+      is_present: true
+    });
+    broadcastFullState();
+    return res.json({ success: true, delegate });
+  }
+  res.status(404).json({ error: 'Không tìm thấy đại biểu' });
+});
+
+// Heartbeat duy trì trạng thái online qua REST API
+app.post('/api/delegates/:id/heartbeat', (req, res) => {
+  const delegate = Database.getDelegateById(req.params.id);
+  if (delegate) {
+    Database.updateDelegate(req.params.id, {
+      is_online: true,
+      is_present: true
+    });
+    return res.json({ success: true });
   }
   res.status(404).json({ error: 'Không tìm thấy đại biểu' });
 });
@@ -446,6 +492,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Theo dõi các kết nối socket của từng đại biểu (chống gián đoạn khi reconnect mạng)
+const delegateSockets = new Map();
+
 // SOCKET.IO REALTIME ENGINE
 io.on('connection', (socket) => {
   console.log(`[Socket] Kết nối mới: ${socket.id}`);
@@ -458,15 +507,37 @@ io.on('connection', (socket) => {
 
   // 1. Đại biểu đăng nhập trên Tablet
   socket.on('delegate_login', ({ delegateId }) => {
+    if (!delegateId) return;
     const delegate = Database.getDelegateById(delegateId);
     if (delegate) {
+      if (!delegateSockets.has(delegateId)) {
+        delegateSockets.set(delegateId, new Set());
+      }
+      delegateSockets.get(delegateId).add(socket.id);
+      socket.delegateId = delegateId;
+
       Database.updateDelegate(delegateId, {
         is_online: true,
         is_present: true, // Khi đại biểu cầm máy tính bảng đăng nhập, tự động ghi nhận CÓ MẶT
         socket_id: socket.id
       });
-      socket.delegateId = delegateId;
       console.log(`[Tablet] Đại biểu ${delegate.name} (${delegate.seat_number}) đã online & điểm danh có mặt.`);
+      broadcastFullState();
+    }
+  });
+
+  // Duy trì heartbeat online liên tục từ Tablet
+  socket.on('delegate_heartbeat', ({ delegateId }) => {
+    if (!delegateId) return;
+    if (!delegateSockets.has(delegateId)) {
+      delegateSockets.set(delegateId, new Set());
+    }
+    delegateSockets.get(delegateId).add(socket.id);
+    socket.delegateId = delegateId;
+
+    const delegate = Database.getDelegateById(delegateId);
+    if (delegate && (!delegate.is_online || !delegate.is_present)) {
+      Database.updateDelegate(delegateId, { is_online: true, is_present: true });
       broadcastFullState();
     }
   });
@@ -639,14 +710,31 @@ io.on('connection', (socket) => {
     broadcastFullState();
   });
 
-  // 14. Admin: Toggle điểm danh đại biểu qua Socket
-  socket.on('admin_toggle_present', ({ delegateId }) => {
+  // 14. Admin: Toggle điểm danh đại biểu qua Socket (chấp nhận trạng thái mong muốn rõ ràng)
+  socket.on('admin_toggle_present', ({ delegateId, is_present }) => {
     const delegate = Database.getDelegateById(delegateId);
     if (delegate) {
-      Database.updateDelegate(delegateId, { is_present: !delegate.is_present });
-      console.log(`[Admin Socket] Đổi điểm danh đại biểu ${delegate.name}: ${!delegate.is_present ? 'Có mặt' : 'Vắng mặt'}`);
+      const targetState = (is_present !== undefined) ? Boolean(is_present) : !delegate.is_present;
+      Database.updateDelegate(delegateId, { is_present: targetState });
+      console.log(`[Admin Socket] Đổi điểm danh đại biểu ${delegate.name} (${delegate.seat_number}): ${targetState ? 'Có mặt' : 'Vắng mặt'}`);
       broadcastFullState();
     }
+  });
+
+  // Admin: Điểm danh tất cả có mặt
+  socket.on('admin_checkin_all', () => {
+    const session = Database.getActiveSession();
+    Database.checkinAllDelegates(session ? session.id : null, true);
+    console.log(`[Admin Socket] Đã điểm danh TẤT CẢ đại biểu CÓ MẶT.`);
+    broadcastFullState();
+  });
+
+  // Admin: Đặt tất cả vắng mặt
+  socket.on('admin_checkout_all', () => {
+    const session = Database.getActiveSession();
+    Database.checkinAllDelegates(session ? session.id : null, false);
+    console.log(`[Admin Socket] Đã đặt TẤT CẢ đại biểu VẮNG MẶT.`);
+    broadcastFullState();
   });
 
   // 15. Admin: Cập nhật cấu hình hệ thống qua Socket
@@ -660,12 +748,23 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Xử lý ngắt kết nối
+  // Xử lý ngắt kết nối (với thời gian chờ 3.5s chống mất kết nối ảo khi tablet xoay màn hình hoặc reload)
   socket.on('disconnect', () => {
     if (socket.delegateId) {
-      Database.updateDelegate(socket.delegateId, { is_online: false, socket_id: null });
-      console.log(`[Socket] Đại biểu ${socket.delegateId} ngắt kết nối.`);
-      broadcastFullState();
+      const delId = socket.delegateId;
+      const sockSet = delegateSockets.get(delId);
+      if (sockSet) {
+        sockSet.delete(socket.id);
+      }
+
+      setTimeout(() => {
+        const remaining = delegateSockets.get(delId);
+        if (!remaining || remaining.size === 0) {
+          Database.updateDelegate(delId, { is_online: false, socket_id: null });
+          console.log(`[Socket] Đại biểu ${delId} ngắt kết nối.`);
+          broadcastFullState();
+        }
+      }, 3500);
     }
   });
 });

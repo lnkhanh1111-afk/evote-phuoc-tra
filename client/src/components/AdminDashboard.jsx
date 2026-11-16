@@ -249,13 +249,44 @@ export default function AdminDashboard({ state, refreshState }) {
     e.target.value = '';
   };
 
-  // Toggle điểm danh đại biểu
-  const handleTogglePresent = async (delId) => {
-    socket.emit('admin_toggle_present', { delegateId: delId });
+  // Toggle điểm danh đại biểu (đảm bảo không bao giờ bị lật ngược)
+  const handleTogglePresent = async (delId, explicitStatus) => {
+    const delegate = delegates.find(d => d.id === delId);
+    const targetStatus = explicitStatus !== undefined ? explicitStatus : (delegate ? !delegate.is_present : true);
+
+    // 1. Gửi realtime qua WebSocket với trạng thái mục tiêu rõ ràng
+    socket.emit('admin_toggle_present', { delegateId: delId, is_present: targetStatus });
+
+    // 2. Gửi qua REST API dự phòng
     try {
-      await fetch(`${API_URL}/api/delegates/${delId}/toggle-present`, { method: 'POST' });
+      await fetch(`${API_URL}/api/delegates/${delId}/toggle-present`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_present: targetStatus })
+      });
+    } catch (e) {}
+
+    if (refreshState) refreshState();
+  };
+
+  // Điểm danh tất cả Có mặt
+  const handleCheckinAll = async () => {
+    socket.emit('admin_checkin_all');
+    try {
+      await fetch(`${API_URL}/api/delegates/checkin-all`, { method: 'POST' });
     } catch (e) {}
     if (refreshState) refreshState();
+  };
+
+  // Đặt tất cả Vắng mặt
+  const handleCheckoutAll = async () => {
+    if (window.confirm('Xác nhận đặt toàn bộ đại biểu sang trạng thái Vắng mặt?')) {
+      socket.emit('admin_checkout_all');
+      try {
+        await fetch(`${API_URL}/api/delegates/checkout-all`, { method: 'POST' });
+      } catch (e) {}
+      if (refreshState) refreshState();
+    }
   };
 
   // Thêm chỉ tiêu mới
@@ -726,7 +757,7 @@ export default function AdminDashboard({ state, refreshState }) {
                     <h3 className="font-bold text-slate-800 text-sm uppercase">
                       Giám sát đại biểu biểu quyết ({results?.total_voted || 0}/{results?.present_delegates || 0} ĐB đã bấm)
                     </h3>
-                    <p className="text-xs text-slate-500">Màu xanh: Đã bấm | Màu xám: Chưa bấm | Chấm xanh: Đang online</p>
+                    <p className="text-xs text-slate-500">Màu xanh: Đã bấm | Màu xám: Chưa bấm | Chấm xanh: Đang online • <span className="text-red-700 font-bold">Chạm vào ô đại biểu để đổi Có mặt / Vắng mặt nhanh</span></p>
                   </div>
                 </div>
 
@@ -734,9 +765,11 @@ export default function AdminDashboard({ state, refreshState }) {
                   {results?.delegate_status_list?.map((d) => (
                     <div
                       key={d.id}
-                      className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between transition-all ${
+                      onClick={() => handleTogglePresent(d.id, !d.is_present)}
+                      title={`Nhấp chuột để đổi sang: ${!d.is_present ? 'CÓ MẶT' : 'VẮNG MẶT'}`}
+                      className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between transition-all cursor-pointer hover:shadow-md select-none ${
                         !d.is_present
-                          ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60'
+                          ? 'bg-slate-100 border-slate-200 text-slate-400 opacity-60 hover:opacity-100'
                           : d.has_voted
                           ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm'
                           : votingStatus === 'voting'
@@ -1168,13 +1201,33 @@ export default function AdminDashboard({ state, refreshState }) {
                 <h2 className="text-lg font-bold text-slate-800">Danh Sách Đại Biểu HĐND & Điểm Danh Kỳ Họp</h2>
                 <p className="text-xs text-slate-500">Chạm vào nút điểm danh để chuyển đổi trạng thái Có mặt / Vắng mặt</p>
               </div>
-              <button
-                onClick={() => setShowAddDelegateModal(true)}
-                className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>Thêm Đại Biểu</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCheckinAll}
+                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow active:scale-95"
+                  title="Điểm danh tất cả đại biểu có mặt"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Tất cả Có mặt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCheckoutAll}
+                  className="flex items-center gap-1.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 border border-slate-300"
+                  title="Đặt tất cả đại biểu vắng mặt"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>Tất cả Vắng mặt</span>
+                </button>
+                <button
+                  onClick={() => setShowAddDelegateModal(true)}
+                  className="flex items-center gap-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Thêm Đại Biểu</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -1201,11 +1254,12 @@ export default function AdminDashboard({ state, refreshState }) {
                       <td className="py-3 px-3 font-mono text-slate-400">{del.pin}</td>
                       <td className="py-3 px-3 text-center">
                         <button
-                          onClick={() => handleTogglePresent(del.id)}
-                          className={`px-3 py-1 rounded-full font-bold text-[11px] transition ${
+                          type="button"
+                          onClick={() => handleTogglePresent(del.id, !del.is_present)}
+                          className={`px-3 py-1.5 rounded-full font-bold text-[11px] transition shadow-sm ${
                             del.is_present
-                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                              : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                              : 'bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300'
                           }`}
                         >
                           {del.is_present ? '✓ Có mặt' : '✗ Vắng mặt'}
