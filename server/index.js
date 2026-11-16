@@ -81,6 +81,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', serverTime: new Date().toISOString() });
 });
 
+// Tình trạng cơ sở dữ liệu (Cloud MongoDB Atlas vs File JSON)
+app.get('/api/database-status', (req, res) => {
+  res.json(Database.getStorageStatus());
+});
+
 // 1. Sessions
 app.get('/api/session/active', (req, res) => {
   const session = Database.getActiveSession();
@@ -466,10 +471,18 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', async () => {
   console.log(`======================================================`);
   console.log(`  HỆ THỐNG BIỂU QUYẾT ĐIỆN TỬ HĐND PHƯỚC TRÀ`);
   console.log(`  Server đang chạy tại: http://localhost:${PORT}`);
   console.log(`  Chấp nhận kết nối mạng LAN từ máy tính bảng`);
   console.log(`======================================================`);
+
+  // Tự động kết nối Cloud MongoDB Atlas nếu có biến môi trường MONGODB_URI
+  try {
+    await Database.initMongo();
+    broadcastFullState();
+  } catch (e) {
+    console.error('Lỗi khởi động cơ sở dữ liệu:', e);
+  }
 });

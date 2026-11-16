@@ -36,6 +36,7 @@ export default function AdminDashboard({ state }) {
   // Form sửa thông tin kỳ họp / cuộc họp
   const [showEditSessionModal, setShowEditSessionModal] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [dbStatus, setDbStatus] = useState({ isMongoConnected: false, storageType: 'Cục bộ' });
   const fileInputRef = useRef(null);
   const [sessionForm, setSessionForm] = useState({
     name: '',
@@ -43,6 +44,14 @@ export default function AdminDashboard({ state }) {
     location: '',
     date: ''
   });
+
+  // Kiểm tra tình trạng kết nối Database
+  useEffect(() => {
+    fetch(`${API_URL}/api/database-status`)
+      .then(res => res.json())
+      .then(data => setDbStatus(data))
+      .catch(() => {});
+  }, []);
 
   const session = state.session;
 
@@ -249,12 +258,22 @@ export default function AdminDashboard({ state }) {
           <div className="flex items-center gap-4">
             <NationalEmblem size={60} className="hidden sm:block shrink-0" />
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <NationalFlag className="w-4 h-3 shadow-sm" />
                 <span className="bg-red-700 text-white text-[11px] font-black uppercase px-2.5 py-0.5 rounded">
                   BÀN ĐIỀU HÀNH THƯ KÝ / CHỦ TỌA
                 </span>
                 <span className="text-xs text-slate-500 font-semibold">HĐND XÃ PHƯỚC TRÀ</span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
+                    dbStatus.isMongoConnected
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'bg-amber-50 text-amber-700 border-amber-300'
+                  }`}
+                  title={dbStatus.isMongoConnected ? 'Đang lưu trữ trực tiếp trên MongoDB Atlas Cloud, dữ liệu vĩnh viễn không bao giờ mất' : 'Đang lưu trữ cục bộ file JSON'}
+                >
+                  {dbStatus.isMongoConnected ? '☁️ Cloud MongoDB: Đã kết nối' : '💾 Lưu trữ: Cục bộ'}
+                </span>
               </div>
               
               <div className="flex flex-wrap items-center gap-3 mt-1.5">

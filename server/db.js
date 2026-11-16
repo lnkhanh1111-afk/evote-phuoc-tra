@@ -103,6 +103,65 @@ let memoryDb = null;
 let isWriting = false;
 let hasPendingWrite = false;
 
+// Tích hợp Cloud Database MongoDB Atlas (Lưu trữ vĩnh viễn không bao giờ mất trên Cloud Render)
+let mongoClient = null;
+let mongoCollection = null;
+let isMongoConnected = false;
+
+async function initMongo() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    console.log('[Database] MONGODB_URI chưa được cấu hình. Sử dụng file database.json cục bộ.');
+    return false;
+  }
+
+  try {
+    const { MongoClient } = require('mongodb');
+    console.log('[Database] Đang kết nối tới Cloud Database MongoDB Atlas...');
+    mongoClient = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 6000,
+      connectTimeoutMS: 10000,
+    });
+    await mongoClient.connect();
+    const db = mongoClient.db('evote_phuoc_tra');
+    mongoCollection = db.collection('meeting_state');
+    isMongoConnected = true;
+    console.log('✓ KẾT NỐI MONGODB ATLAS THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.');
+
+    // Nạp dữ liệu từ Cloud vào bộ nhớ RAM
+    const cloudDoc = await mongoCollection.findOne({ _id: 'current_meeting_state' });
+    if (cloudDoc && cloudDoc.data) {
+      memoryDb = cloudDoc.data;
+      saveDbImmediate(memoryDb);
+      console.log('✓ Đã đồng bộ dữ liệu phiên họp từ Cloud MongoDB Atlas vào RAM.');
+    } else {
+      await mongoCollection.updateOne(
+        { _id: 'current_meeting_state' },
+        { $set: { data: memoryDb || readDb(), updatedAt: new Date() } },
+        { upsert: true }
+      );
+      console.log('✓ Đã khởi tạo dữ liệu mẫu lên MongoDB Atlas.');
+    }
+    return true;
+  } catch (err) {
+    console.error('⚠ Không thể kết nối MongoDB Atlas (sử dụng database.json dự phòng):', err.message);
+    isMongoConnected = false;
+    return false;
+  }
+}
+
+// Bất đồng bộ lưu lên MongoDB Atlas khi có thay đổi
+function syncToMongoAsync(data) {
+  if (!isMongoConnected || !mongoCollection) return;
+  mongoCollection.updateOne(
+    { _id: 'current_meeting_state' },
+    { $set: { data: data, updatedAt: new Date() } },
+    { upsert: true }
+  ).catch(err => {
+    console.error('Lỗi sync MongoDB Atlas:', err.message);
+  });
+}
+
 // Đọc dữ liệu (ưu tiên bộ nhớ RAM siêu tốc, 0ms, không nghẽn I/O ổ đĩa)
 function readDb() {
   if (memoryDb) return memoryDb;
@@ -128,6 +187,7 @@ function saveDbImmediate(data) {
     const tempFile = `${DB_FILE}.tmp`;
     fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tempFile, DB_FILE);
+    syncToMongoAsync(data);
   } catch (error) {
     console.error("Lỗi ghi cơ sở dữ liệu tức thì:", error);
   }
@@ -137,6 +197,7 @@ function saveDbImmediate(data) {
 // Đảm bảo khi 18+ đại biểu cùng bấm biểu quyết ở cùng 1 tích tắc, không bị xung đột khóa file (EBUSY) trên Windows/Linux
 function writeDb(data) {
   memoryDb = data; // Cập nhật ngay lập tức trong RAM (đơn luồng Node.js không bao giờ race condition)
+  syncToMongoAsync(data); // Tự động đồng bộ lên Cloud MongoDB Atlas
 
   if (isWriting) {
     hasPendingWrite = true;
@@ -479,6 +540,18 @@ class Database {
     memoryDb = JSON.parse(JSON.stringify(backupData));
     saveDbImmediate(memoryDb);
     return true;
+  }
+
+  // Tình trạng kết nối lưu trữ
+  static getStorageStatus() {
+    return {
+      isMongoConnected,
+      storageType: isMongoConnected ? 'MongoDB Atlas (Cloud Vĩnh Viễn)' : 'Cục bộ (database.json)'
+    };
+  }
+
+  static initMongo() {
+    return initMongo();
   }
 }
 
