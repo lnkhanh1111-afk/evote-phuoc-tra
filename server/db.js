@@ -150,15 +150,63 @@ async function initMongo() {
   }
 }
 
-// Bất đồng bộ lưu lên MongoDB Atlas khi có thay đổi
-function syncToMongoAsync(data) {
-  if (!isMongoConnected || !mongoCollection) return;
-  mongoCollection.updateOne(
-    { _id: 'current_meeting_state' },
-    { $set: { data: data, updatedAt: new Date() } },
-    { upsert: true }
+// Tích hợp Cloud PostgreSQL (Neon.tech / Supabase qua biến môi trường DATABASE_URL)
+let pgPool = null;
+let isPgConnected = false;
+
+async function initPg() {
+  const uri = process.env.DATABASE_URL;
+  if (!uri) return false;
+
+  try {
+    const { Pool } = require('pg');
+    console.log('[Database] Đang kết nối tới Cloud PostgreSQL (Neon / Supabase)...');
+    pgPool = new Pool({
+      connectionString: uri,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 8000
+    });
+
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS meeting_state (
+        id VARCHAR(50) PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    isPgConnected = true;
+    console.log('✓ KẾT NỐI CLOUD POSTGRESQL (NEON / SUPABASE) THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.');
+
+    const res = await pgPool.query(`SELECT data FROM meeting_state WHERE id = 'current_meeting_state';`);
+    if (res.rows.length > 0 && res.rows[0].data) {
+      memoryDb = res.rows[0].data;
+      saveDbImmediate(memoryDb);
+      console.log('✓ Đã đồng bộ dữ liệu phiên họp từ Cloud PostgreSQL vào RAM.');
+    } else {
+      await pgPool.query(
+        `INSERT INTO meeting_state (id, data, updated_at) VALUES ('current_meeting_state', $1, NOW())
+         ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW();`,
+        [JSON.stringify(memoryDb || readDb())]
+      );
+      console.log('✓ Đã khởi tạo dữ liệu mẫu lên Cloud PostgreSQL.');
+    }
+    return true;
+  } catch (err) {
+    console.error('⚠ Không thể kết nối Cloud PostgreSQL (sử dụng database.json dự phòng):', err.message);
+    isPgConnected = false;
+    return false;
+  }
+}
+
+function syncToPgAsync(data) {
+  if (!isPgConnected || !pgPool) return;
+  pgPool.query(
+    `INSERT INTO meeting_state (id, data, updated_at) VALUES ('current_meeting_state', $1, NOW())
+     ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW();`,
+    [JSON.stringify(data)]
   ).catch(err => {
-    console.error('Lỗi sync MongoDB Atlas:', err.message);
+    console.error('Lỗi sync Cloud PostgreSQL:', err.message);
   });
 }
 
@@ -188,6 +236,7 @@ function saveDbImmediate(data) {
     fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf8');
     fs.renameSync(tempFile, DB_FILE);
     syncToMongoAsync(data);
+    syncToPgAsync(data);
   } catch (error) {
     console.error("Lỗi ghi cơ sở dữ liệu tức thì:", error);
   }
@@ -198,6 +247,7 @@ function saveDbImmediate(data) {
 function writeDb(data) {
   memoryDb = data; // Cập nhật ngay lập tức trong RAM (đơn luồng Node.js không bao giờ race condition)
   syncToMongoAsync(data); // Tự động đồng bộ lên Cloud MongoDB Atlas
+  syncToPgAsync(data); // Tự động đồng bộ lên Cloud PostgreSQL (Neon/Supabase)
 
   if (isWriting) {
     hasPendingWrite = true;
@@ -544,14 +594,23 @@ class Database {
 
   // Tình trạng kết nối lưu trữ
   static getStorageStatus() {
+    let storageType = 'Cục bộ (database.json)';
+    if (isPgConnected) storageType = 'Cloud PostgreSQL (Neon / Supabase - Vĩnh viễn)';
+    else if (isMongoConnected) storageType = 'MongoDB Atlas (Cloud Vĩnh Viễn)';
     return {
+      isCloudConnected: isPgConnected || isMongoConnected,
+      isPgConnected,
       isMongoConnected,
-      storageType: isMongoConnected ? 'MongoDB Atlas (Cloud Vĩnh Viễn)' : 'Cục bộ (database.json)'
+      storageType
     };
   }
 
   static initMongo() {
     return initMongo();
+  }
+
+  static initPg() {
+    return initPg();
   }
 }
 

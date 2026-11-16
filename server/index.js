@@ -478,11 +478,15 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`  Chấp nhận kết nối mạng LAN từ máy tính bảng`);
   console.log(`======================================================`);
 
-  // Tự động kết nối Cloud MongoDB Atlas nếu có biến môi trường MONGODB_URI
+  // Tự động kết nối Cloud Database (PostgreSQL Neon/Supabase hoặc MongoDB Atlas)
   try {
-    await Database.initMongo();
+    if (process.env.DATABASE_URL) {
+      await Database.initPg();
+    } else if (process.env.MONGODB_URI) {
+      await Database.initMongo();
+    }
     broadcastFullState();
   } catch (e) {
-    console.error('Lỗi khởi động cơ sở dữ liệu:', e);
+    console.error('Lỗi khởi động cơ sở dữ liệu cloud:', e);
   }
 });
