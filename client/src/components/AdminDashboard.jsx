@@ -36,7 +36,7 @@ export default function AdminDashboard({ state }) {
   // Form sửa thông tin kỳ họp / cuộc họp
   const [showEditSessionModal, setShowEditSessionModal] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
-  const [dbStatus, setDbStatus] = useState({ isMongoConnected: false, storageType: 'Cục bộ' });
+  const [dbStatus, setDbStatus] = useState({ isCloudConnected: false, storageType: 'Cục bộ' });
   const fileInputRef = useRef(null);
   const [sessionForm, setSessionForm] = useState({
     name: '',
@@ -45,12 +45,17 @@ export default function AdminDashboard({ state }) {
     date: ''
   });
 
-  // Kiểm tra tình trạng kết nối Database
+  // Kiểm tra tình trạng kết nối Database (tự động polling mỗi 15s)
   useEffect(() => {
-    fetch(`${API_URL}/api/database-status`)
-      .then(res => res.json())
-      .then(data => setDbStatus(data))
-      .catch(() => {});
+    const fetchStatus = () => {
+      fetch(`${API_URL}/api/database-status`)
+        .then(res => res.json())
+        .then(data => setDbStatus(data))
+        .catch(() => {});
+    };
+    fetchStatus();
+    const timer = setInterval(fetchStatus, 15000);
+    return () => clearInterval(timer);
   }, []);
 
   const session = state.session;
@@ -265,14 +270,18 @@ export default function AdminDashboard({ state }) {
                 </span>
                 <span className="text-xs text-slate-500 font-semibold">HĐND XÃ PHƯỚC TRÀ</span>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all ${
-                    dbStatus.isMongoConnected
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all ${
+                    dbStatus.isCloudConnected
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                       : 'bg-amber-50 text-amber-700 border-amber-300'
                   }`}
-                  title={dbStatus.isMongoConnected ? 'Đang lưu trữ trực tiếp trên MongoDB Atlas Cloud, dữ liệu vĩnh viễn không bao giờ mất' : 'Đang lưu trữ cục bộ file JSON'}
+                  title={
+                    dbStatus.isCloudConnected
+                      ? `Đang lưu trữ trực tiếp trên ${dbStatus.storageType || 'Cloud'}, dữ liệu vĩnh viễn không bao giờ mất`
+                      : 'Đang lưu trữ cục bộ file database.json trên máy chủ Render (có thể bị reset nếu server khởi động lại)'
+                  }
                 >
-                  {dbStatus.isMongoConnected ? '☁️ Cloud MongoDB: Đã kết nối' : '💾 Lưu trữ: Cục bộ'}
+                  {dbStatus.isCloudConnected ? `☁️ ${dbStatus.storageType || 'Cloud: Đã kết nối'}` : '💾 Lưu trữ: Cục bộ'}
                 </span>
               </div>
               

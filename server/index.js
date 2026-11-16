@@ -480,12 +480,15 @@ server.listen(PORT, '0.0.0.0', async () => {
 
   // Tự động kết nối Cloud Database (TiDB Cloud MySQL, PostgreSQL Neon/Supabase hoặc MongoDB Atlas)
   try {
-    if (process.env.TIDB_URL || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('mysql'))) {
-      await Database.initMysql();
-    } else if (process.env.DATABASE_URL) {
-      await Database.initPg();
-    } else if (process.env.MONGODB_URI) {
-      await Database.initMongo();
+    let connected = false;
+    if (process.env.TIDB_URL || process.env.TIDB_HOST || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('mysql'))) {
+      connected = await Database.initMysql();
+    }
+    if (!connected && process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('mysql')) {
+      connected = await Database.initPg();
+    }
+    if (!connected && process.env.MONGODB_URI) {
+      connected = await Database.initMongo();
     }
     broadcastFullState();
   } catch (e) {

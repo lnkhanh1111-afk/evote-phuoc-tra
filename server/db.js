@@ -210,51 +210,80 @@ function syncToPgAsync(data) {
   });
 }
 
-// Tích hợp TiDB Cloud Serverless (MySQL 5GB miễn phí vĩnh viễn qua TIDB_URL hoặc DATABASE_URL bắt đầu bằng mysql)
+// Tích hợp TiDB Cloud Serverless (MySQL 5GB miễn phí vĩnh viễn qua TIDB_URL hoặc TIDB_HOST hoặc DATABASE_URL bắt đầu bằng mysql)
 let mysqlPool = null;
 let isMysqlConnected = false;
+let mysqlActiveDb = 'test';
+
+// Trình phân tích URI MySQL siêu an toàn, chống lỗi ký tự đặc biệt trong mật khẩu
+function parseMysqlUri(rawUri) {
+  let uri = (rawUri || '').trim().replace(/^['"]|['"]$/g, '');
+  if (uri.startsWith('mysql://')) uri = uri.substring(8);
+  const qIndex = uri.indexOf('?');
+  let pathPart = qIndex !== -1 ? uri.substring(0, qIndex) : uri;
+  const atIndex = pathPart.lastIndexOf('@');
+  let user = 'root', password = '', host = 'localhost', port = 4000, database = 'test';
+  if (atIndex !== -1) {
+    const credPart = pathPart.substring(0, atIndex);
+    const hostDbPart = pathPart.substring(atIndex + 1);
+    const cIndex = credPart.indexOf(':');
+    if (cIndex !== -1) {
+      user = decodeURIComponent(credPart.substring(0, cIndex));
+      password = decodeURIComponent(credPart.substring(cIndex + 1));
+    } else {
+      user = decodeURIComponent(credPart);
+    }
+    const slashIndex = hostDbPart.indexOf('/');
+    let hostPortPart = slashIndex !== -1 ? hostDbPart.substring(0, slashIndex) : hostDbPart;
+    if (slashIndex !== -1) {
+      const dbStr = hostDbPart.substring(slashIndex + 1).trim();
+      if (dbStr) database = dbStr;
+    }
+    const pIndex = hostPortPart.indexOf(':');
+    if (pIndex !== -1) {
+      host = hostPortPart.substring(0, pIndex);
+      port = parseInt(hostPortPart.substring(pIndex + 1), 10) || 4000;
+    } else {
+      host = hostPortPart;
+    }
+  }
+  return { user, password, host, port, database };
+}
 
 async function initMysql() {
   const uri = process.env.TIDB_URL || (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('mysql') ? process.env.DATABASE_URL : null);
-  if (!uri) return false;
+
+  let host = process.env.TIDB_HOST;
+  let port = parseInt(process.env.TIDB_PORT, 10) || 4000;
+  let user = process.env.TIDB_USER;
+  let password = process.env.TIDB_PASSWORD;
+  let database = process.env.TIDB_DATABASE || 'test';
+
+  if (uri && !host) {
+    const parsed = parseMysqlUri(uri);
+    host = parsed.host;
+    port = parsed.port;
+    user = parsed.user;
+    password = parsed.password;
+    database = parsed.database || 'test';
+  }
+
+  if (!host || host === 'localhost') {
+    return false;
+  }
+
+  mysqlActiveDb = database || 'test';
 
   try {
     const mysql = require('mysql2/promise');
-    console.log('[Database] Đang kết nối tới TiDB Cloud Serverless (MySQL)...');
-
-    // Phân tích cú pháp URL để trích xuất host, port, user, password và database
-    let host = 'localhost';
-    let port = 4000;
-    let user = 'root';
-    let password = '';
-    let database = 'test'; // Mặc định database của TiDB Cloud luôn là 'test'
-
-    try {
-      const cleanUri = uri.replace(/^mysql:\/\//i, 'http://');
-      const parsedUrl = new URL(cleanUri);
-      host = parsedUrl.hostname || host;
-      port = parseInt(parsedUrl.port, 10) || port;
-      user = decodeURIComponent(parsedUrl.username || user);
-      password = decodeURIComponent(parsedUrl.password || password);
-      const pathDb = parsedUrl.pathname.replace(/^\//, '').trim();
-      if (pathDb) {
-        database = pathDb;
-      }
-    } catch (e) {
-      const match = uri.match(/\/([a-zA-Z0-9_\-]+)(\?|$)/);
-      if (match && match[1]) {
-        database = match[1];
-      }
-    }
-
-    console.log(`[Database] Thông số TiDB: Host=${host}, Port=${port}, User=${user}, Database=${database}`);
+    console.log(`[Database] Đang kết nối tới TiDB Cloud Serverless (MySQL): Host=${host}, Port=${port}, User=${user}, Database=${mysqlActiveDb}...`);
 
     mysqlPool = mysql.createPool({
       host,
       port,
       user,
       password,
-      database,
+      database: mysqlActiveDb,
       ssl: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
       waitForConnections: true,
       connectionLimit: 10,
@@ -264,10 +293,10 @@ async function initMysql() {
     });
 
     // Luôn chọn đúng database được cấp quyền trước khi thao tác
-    await mysqlPool.query(`USE \`${database}\`;`);
+    await mysqlPool.query(`USE \`${mysqlActiveDb}\`;`);
 
     await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS \`${database}\`.\`meeting_state\` (
+      CREATE TABLE IF NOT EXISTS \`${mysqlActiveDb}\`.\`meeting_state\` (
         id VARCHAR(50) PRIMARY KEY,
         data LONGTEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -275,16 +304,16 @@ async function initMysql() {
     `);
 
     isMysqlConnected = true;
-    console.log(`✓ KẾT NỐI TIDB CLOUD SERVERLESS (${database}) THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.`);
+    console.log(`✓ KẾT NỐI TIDB CLOUD SERVERLESS (${mysqlActiveDb}) THÀNH CÔNG! Dữ liệu được lưu vĩnh viễn trên Cloud.`);
 
-    const [rows] = await mysqlPool.query(`SELECT data FROM \`${database}\`.\`meeting_state\` WHERE id = 'current_meeting_state' LIMIT 1;`);
+    const [rows] = await mysqlPool.query(`SELECT data FROM \`${mysqlActiveDb}\`.\`meeting_state\` WHERE id = 'current_meeting_state' LIMIT 1;`);
     if (rows && rows.length > 0 && rows[0].data) {
       memoryDb = typeof rows[0].data === 'string' ? JSON.parse(rows[0].data) : rows[0].data;
       saveDbImmediate(memoryDb);
       console.log('✓ Đã đồng bộ dữ liệu phiên họp từ TiDB Cloud vào RAM.');
     } else {
       await mysqlPool.query(
-        `INSERT INTO \`${database}\`.\`meeting_state\` (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
+        `INSERT INTO \`${mysqlActiveDb}\`.\`meeting_state\` (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
          ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();`,
         [JSON.stringify(memoryDb || readDb())]
       );
@@ -301,7 +330,7 @@ async function initMysql() {
 function syncToMysqlAsync(data) {
   if (!isMysqlConnected || !mysqlPool) return;
   mysqlPool.query(
-    `INSERT INTO meeting_state (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
+    `INSERT INTO \`${mysqlActiveDb}\`.\`meeting_state\` (id, data, updated_at) VALUES ('current_meeting_state', ?, NOW())
      ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW();`,
     [JSON.stringify(data)]
   ).catch(err => {
